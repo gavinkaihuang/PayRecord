@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  nickname  String?
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  telegramToken   String?
+  telegramChatId  String?
+  logs            Log[]
+  bills           Bill[]
+}
+
+model Bill {
+  id                  String    @id @default(uuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date                DateTime
+  
+  // Payment fields
+  payee               String?   // 待支付方
+  payAmount           Float?    // 待付金额
+  isPaid              Boolean   @default(false)
+  paidDate            DateTime? // 实际支付日期
+
+  // Receivables fields
+  payer               String?   // 待收款方
+  receiveAmount       Float?    // 待收款金额
+  actualReceiveAmount Float?    // 实际收款金额
+
+  // Other
+  notes               String?
+  isRecurring         Boolean   @default(false) // Whether to clone to next month with same amount
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model Log {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  details   String?
+  ip        String?
+  createdAt DateTime @default(now())
+}

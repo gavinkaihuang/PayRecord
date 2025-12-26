@@ -1,26 +1,57 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 15, 23, 42;
+  /* Slate 900 */
+  --background-end-rgb: 30, 41, 59;
+  /* Slate 800 */
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(to bottom, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+  min-height: 100vh;
+}
+
+@layer components {
+  .glass-panel {
+    @apply backdrop-blur-lg shadow-xl rounded-2xl;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-input {
+    @apply rounded-lg px-4 py-2 text-white transition-all;
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    outline: none;
+  }
+
+  .glass-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .glass-input:focus {
+    border-color: #6366f1;
+    /* Indigo 500 */
+  }
+
+  .glass-button {
+    @apply bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 px-6 rounded-lg transition-all shadow-lg active:scale-95;
+  }
+
+  .glass-button:hover {
+    box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.2);
+  }
+
+  .glass-button-secondary {
+    @apply text-white font-medium py-2 px-6 rounded-lg transition-all;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-button-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
 }
