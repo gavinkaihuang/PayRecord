@@ -17,17 +17,15 @@ export async function GET(request: Request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
-    const year = parseInt(searchParams.get('year') || '');
-    const month = parseInt(searchParams.get('month') || '');
+    const now = new Date();
+    const year = parseInt(searchParams.get('year') || now.getFullYear().toString());
+    const month = parseInt(searchParams.get('month') || (now.getMonth() + 1).toString());
 
     if (isNaN(year) || isNaN(month)) {
-        return NextResponse.json({ error: 'Year and month are required' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid year or month' }, { status: 400 });
     }
 
     try {
-        // Calculate start and end date for the month query to ensure accuracy if needed, 
-        // but likely we just filter by date range or if we stored year/month separately.
-        // Schema has `date` DateTime. So filter by range.
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0, 23, 59, 59); // Last day of month
 
