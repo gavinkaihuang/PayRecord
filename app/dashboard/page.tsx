@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GlassCard, GlassButton } from '../components/ui';
 import BillModal from './BillModal';
+import { Store } from 'lucide-react';
 
 interface Bill {
     id: string;
@@ -23,13 +24,13 @@ export default function Dashboard() {
     const router = useRouter();
     const [user, setUser] = useState<{ username: string } | null>(null);
     const [year, setYear] = useState(new Date().getFullYear());
-    // Month is 1-indexed for the API/common usage? API expects 1-12 usually. 
-    // Date().getMonth() is 0-11. Let's use 1-12 for state.
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [bills, setBills] = useState<Bill[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingBill, setEditingBill] = useState<Bill | null>(null);
+
+    const [merchantsMap, setMerchantsMap] = useState<Map<string, string>>(new Map());
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -39,8 +40,30 @@ export default function Dashboard() {
         }
         const userData = localStorage.getItem('user');
         if (userData) setUser(JSON.parse(userData));
+
+        // Parallel fetch
         fetchBills();
+        fetchMerchants();
     }, [year, month]);
+
+    const fetchMerchants = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/merchants', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data: { name: string, icon: string | null }[] = await res.json();
+                const map = new Map<string, string>();
+                data.forEach(m => {
+                    if (m.icon) map.set(m.name, m.icon);
+                });
+                setMerchantsMap(map);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
     const fetchBills = async () => {
         setLoading(true);
@@ -70,14 +93,6 @@ export default function Dashboard() {
     const handleClone = async () => {
         if (!confirm('Clone bills from this month to the next month?')) return;
 
-        // Logic: Current view is Source. We clone TO next month.
-        // Wait, usually "Clone" button on "Current Month" means "Clone THIS content to NEXT"? 
-        // Or "Clone FROM previous"?
-        // User req: "在用户主页面提供克隆按钮，将本月的账单模版克隆到下月使用。"
-        // "Clone THIS month's template to connect to NEXT month usage."
-        // So if I am viewing Dec 2025, and click Clone, it creates Jan 2026.
-        // Yes.
-
         try {
             const token = localStorage.getItem('token');
             const res = await fetch('/api/bills/clone', {
@@ -92,7 +107,6 @@ export default function Dashboard() {
             if (res.ok) {
                 const data = await res.json();
                 alert(`Successfully cloned ${data.clonedCount} bills to next month.`);
-                // Optionally switch to next month
                 if (month === 12) {
                     setYear(y => y + 1);
                     setMonth(1);
@@ -215,14 +229,40 @@ export default function Dashboard() {
                                 bills.map(bill => (
                                     <tr key={bill.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                                         <td className="p-4">{new Date(bill.date).toLocaleDateString()}</td>
-                                        <td className="p-4">{bill.payee || '-'}</td>
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-2">
+                                                {bill.payee && (
+                                                    <div className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10">
+                                                        {merchantsMap.get(bill.payee) ? (
+                                                            <img src={merchantsMap.get(bill.payee)!} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <Store className="w-3 h-3 text-white/30" />
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <span>{bill.payee || '-'}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-4">{bill.payAmount ? `¥ ${bill.payAmount}` : '-'}</td>
                                         <td className="p-4">
                                             <span className={`px-2 py-1 rounded text-xs ${bill.isPaid ? 'bg-green-500/20 text-green-300' : 'bg-yellow-500/20 text-yellow-300'}`}>
                                                 {bill.isPaid ? 'Paid' : 'Pending'}
                                             </span>
                                         </td>
-                                        <td className="p-4">{bill.payer || '-'}</td>
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-2">
+                                                {bill.payer && (
+                                                    <div className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10">
+                                                        {merchantsMap.get(bill.payer) ? (
+                                                            <img src={merchantsMap.get(bill.payer)!} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <Store className="w-3 h-3 text-white/30" />
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <span>{bill.payer || '-'}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-4">{bill.receiveAmount ? `¥ ${bill.receiveAmount}` : '-'}</td>
                                         <td className="p-4 max-w-xs truncate" title={bill.notes || ''}>{bill.notes || '-'}</td>
                                         <td className="p-4 text-center">{bill.isRecurring ? 'Yes' : 'No'}</td>

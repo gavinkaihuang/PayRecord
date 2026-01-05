@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { enrichBillWithIcons } from '@/lib/enrich';
+import { logAction } from '@/lib/logger';
 
 async function isAuthenticated() {
     const headersList = await headers();
@@ -36,7 +38,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
                 isRecurring: body.isRecurring,
             }
         });
-        return NextResponse.json(bill);
+
+        // Log Activity
+        const headersList = await headers();
+        const ip = headersList.get('x-forwarded-for') || 'unknown';
+        await logAction(user.userId as string, 'UPDATE_BILL', `Updated bill ${bill.id}`, ip);
+
+        const enrichedBill = await enrichBillWithIcons(bill, user.userId as string);
+        return NextResponse.json(enrichedBill);
     } catch (e) {
         return NextResponse.json({ error: 'Failed to update bill' }, { status: 500 });
     }
@@ -54,6 +63,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
                 userId: user.userId as string
             }
         });
+
+        // Log Activity
+        const headersList = await headers();
+        const ip = headersList.get('x-forwarded-for') || 'unknown';
+        await logAction(user.userId as string, 'DELETE_BILL', `Deleted bill ${id}`, ip);
+
         return NextResponse.json({ success: true });
     } catch (e) {
         return NextResponse.json({ error: 'Failed to delete bill' }, { status: 500 });

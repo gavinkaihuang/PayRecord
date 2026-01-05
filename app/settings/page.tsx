@@ -2,12 +2,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GlassButton, GlassInput } from '../components/ui';
-import { User, Lock, Send, Shield, Activity, Save } from 'lucide-react';
+import { User, Lock, Send, Shield, Activity, Save, Store, Upload, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function SettingsPage() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<'profile' | 'telegram' | 'logs'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'telegram' | 'logs' | 'merchants'>('profile');
     const [isLoading, setIsLoading] = useState(false);
 
     // Profile State
@@ -69,6 +69,67 @@ export default function SettingsPage() {
             }
         } catch (error) {
             console.error(error);
+        }
+    };
+
+    // Merchants State
+    const [merchants, setMerchants] = useState<{ name: string, icon: string | null }[]>([]);
+    const [isUploadingMerchant, setIsUploadingMerchant] = useState<string | null>(null);
+
+    const fetchMerchants = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/merchants', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setMerchants(data);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'merchants') {
+            fetchMerchants();
+        }
+    }, [activeTab]);
+
+    const handleUploadIcon = async (merchantName: string, file: File) => {
+        setIsUploadingMerchant(merchantName);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const token = localStorage.getItem('token');
+            const uploadRes = await fetch('/api/upload', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            });
+
+            if (!uploadRes.ok) throw new Error('Upload failed');
+            const { url } = await uploadRes.json();
+
+            const saveRes = await fetch('/api/merchants', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ name: merchantName, icon: url })
+            });
+
+            if (!saveRes.ok) throw new Error('Save failed');
+            await fetchMerchants();
+
+        } catch (error) {
+            console.error(error);
+            alert('Failed to upload icon');
+        } finally {
+            setIsUploadingMerchant(null);
         }
     };
 
@@ -171,6 +232,7 @@ export default function SettingsPage() {
                 <div className="glass-panel p-4 h-fit space-y-2">
                     <TabButton id="profile" label="Profile" icon={User} />
                     <TabButton id="telegram" label="Telegram" icon={Send} />
+                    <TabButton id="merchants" label="Merchants" icon={Store} />
                     <TabButton id="logs" label="Activity Logs" icon={Activity} />
                 </div>
 
@@ -335,6 +397,61 @@ export default function SettingsPage() {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'merchants' && (
+                        <div className="space-y-6 animate-fadeIn">
+                            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                                <Store className="w-5 h-5 text-purple-400" />
+                                Merchant Icons
+                            </h2>
+                            <p className="text-white/50 text-sm mb-6">
+                                Manage icons for your Payees and Payers.
+                            </p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {merchants.map((merchant) => (
+                                    <div key={merchant.name} className="glass-panel p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center overflow-hidden border border-white/10">
+                                                {merchant.icon ? (
+                                                    <img src={merchant.icon} alt={merchant.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="text-lg text-white/30">{merchant.name[0].toUpperCase()}</span>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-medium text-white/90">{merchant.name}</h3>
+                                            </div>
+                                        </div>
+
+                                        <div className="relative">
+                                            <input
+                                                type="file"
+                                                id={`upload-${merchant.name}`}
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={(e) => e.target.files?.[0] && handleUploadIcon(merchant.name, e.target.files[0])}
+                                            />
+                                            <label
+                                                htmlFor={`upload-${merchant.name}`}
+                                                className={`p-2 rounded-lg cursor-pointer transition-colors flex items-center gap-2 ${merchant.icon ? 'text-white/30 hover:text-white hover:bg-white/10' : 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
+                                                    }`}
+                                            >
+                                                {isUploadingMerchant === merchant.name ? (
+                                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                ) : (
+                                                    <>
+                                                        <Upload className="w-4 h-4" />
+                                                        <span className="text-sm">{merchant.icon ? 'Change' : 'Upload'}</span>
+                                                    </>
+                                                )}
+                                            </label>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}

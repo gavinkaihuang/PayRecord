@@ -1,6 +1,11 @@
-import prisma from './prisma';
+import prisma from '@/lib/prisma';
 
-export async function createLog(userId: string, action: string, details?: string, ip?: string) {
+export async function logAction(
+    userId: string,
+    action: string,
+    details?: string | null,
+    ip?: string | null
+) {
     try {
         await prisma.log.create({
             data: {
@@ -10,8 +15,8 @@ export async function createLog(userId: string, action: string, details?: string
                 ip
             }
         });
-    } catch (error) {
-        console.error('Failed to create log:', error);
-        // Fail silently to not block the main action
+    } catch (e) {
+        console.error('Failed to log action:', e);
+        // Don't throw, logging failure shouldn't block main action
     }
 }

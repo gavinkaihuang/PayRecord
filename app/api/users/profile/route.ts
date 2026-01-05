@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUser } from '@/lib/auth';
-import { createLog } from '@/lib/logger';
+import { logAction } from '@/lib/logger';
 import bcrypt from 'bcryptjs';
 
 export async function GET() {
@@ -78,9 +78,9 @@ export async function PUT(request: Request) {
 
         try {
             if (actions.length > 0) {
-                await createLog(sessionUser.id, 'UPDATE_PROFILE', `Updated: ${actions.join(', ')}`);
+                await logAction(sessionUser.id, 'UPDATE_PROFILE', `Updated: ${actions.join(', ')}`);
             } else {
-                await createLog(sessionUser.id, 'UPDATE_PROFILE', 'Updated profile details');
+                await logAction(sessionUser.id, 'UPDATE_PROFILE', 'Updated profile details');
             }
             console.log('Log created');
         } catch (logError) {

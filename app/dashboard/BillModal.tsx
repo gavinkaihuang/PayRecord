@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { GlassButton, GlassInput } from '../components/ui';
 import { DatePicker } from '../components/DatePicker';
+import { MerchantSelect } from '../components/MerchantSelect';
 import { format } from 'date-fns';
 
 interface Bill {
@@ -139,7 +140,7 @@ export default function BillModal({ isOpen, onClose, book, year, month, onSucces
 
                     <div>
                         <label className="block text-sm text-white/50 mb-1">Payee (待支付方)</label>
-                        <GlassInput value={formData.payee} onChange={e => setFormData({ ...formData, payee: e.target.value })} className="w-full" placeholder="e.g. Bank, Alipay" />
+                        <MerchantSelect value={formData.payee} onChange={value => setFormData({ ...formData, payee: value })} className="w-full" placeholder="e.g. Bank, Alipay" />
                     </div>
                     <div>
                         <label className="block text-sm text-white/50 mb-1">Pay Amount (¥)</label>
@@ -167,7 +168,7 @@ export default function BillModal({ isOpen, onClose, book, year, month, onSucces
 
                     <div>
                         <label className="block text-sm text-white/50 mb-1">Payer (待收款方)</label>
-                        <GlassInput value={formData.payer} onChange={e => setFormData({ ...formData, payer: e.target.value })} className="w-full" />
+                        <MerchantSelect value={formData.payer} onChange={value => setFormData({ ...formData, payer: value })} className="w-full" />
                     </div>
                     <div>
                         <label className="block text-sm text-white/50 mb-1">Receive Amount (¥)</label>

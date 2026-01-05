@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { enrichBillsWithIcons, enrichBillWithIcons } from '@/lib/enrich';
+import { logAction } from '@/lib/logger';
 
 async function isAuthenticated() {
     const headersList = await headers();
@@ -41,7 +43,9 @@ export async function GET(request: Request) {
                 date: 'asc'
             }
         });
-        return NextResponse.json(bills);
+
+        const enrichedBills = await enrichBillsWithIcons(bills, user.userId as string);
+        return NextResponse.json(enrichedBills);
     } catch (e) {
         return NextResponse.json({ error: 'Failed to fetch bills' }, { status: 500 });
     }
@@ -71,9 +75,61 @@ export async function POST(request: Request) {
                 isRecurring: body.isRecurring || false,
             }
         });
-        return NextResponse.json(bill);
+
+        // Log Activity
+        const headersList = await headers();
+        const ip = headersList.get('x-forwarded-for') || 'unknown';
+        await logAction(user.userId as string, 'CREATE_BILL', `Created bill for ${bill.payee || bill.payer || 'Unknown'}`, ip);
+
+        const enrichedBill = await enrichBillWithIcons(bill, user.userId as string);
+        return NextResponse.json(enrichedBill);
     } catch (e) {
         console.error(e);
         return NextResponse.json({ error: 'Failed to create bill' }, { status: 500 });
+    }
+}
+// Bulk DELETE bills for a specific month
+export async function DELETE(request: Request) {
+    const user = await isAuthenticated();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { searchParams } = new URL(request.url);
+    const yearStr = searchParams.get('year');
+    const monthStr = searchParams.get('month');
+
+    if (!yearStr || !monthStr) {
+        return NextResponse.json({ error: 'Year and month are required' }, { status: 400 });
+    }
+
+    const year = parseInt(yearStr);
+    const month = parseInt(monthStr);
+
+    if (isNaN(year) || isNaN(month)) {
+        return NextResponse.json({ error: 'Invalid year or month' }, { status: 400 });
+    }
+
+    try {
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 0, 23, 59, 59);
+
+        const result = await prisma.bill.deleteMany({
+            where: {
+                userId: user.userId as string,
+                date: {
+                    gte: startDate,
+                    lte: endDate
+                }
+            }
+        });
+
+        // Log Activity
+        const headersList = await headers();
+        const ip = headersList.get('x-forwarded-for') || 'unknown';
+        await logAction(user.userId as string, 'BULK_DELETE_BILLS', `Deleted ${result.count} bills for ${year}-${month}`, ip);
+
+        return NextResponse.json({ deletedCount: result.count });
+    } catch (e) {
+        console.error(e);
+        return NextResponse.json({ error: 'Failed to delete bills' }, { status: 500 });
     }
 }

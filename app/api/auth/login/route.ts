@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyPassword, signToken } from '@/lib/auth';
+import { logAction } from '@/lib/logger';
+import { headers } from 'next/headers';
 
 export async function POST(request: Request) {
     try {
@@ -19,6 +21,11 @@ export async function POST(request: Request) {
         }
 
         const token = await signToken({ userId: user.id, username: user.username });
+
+        // Log Login
+        const headersList = await headers();
+        const ip = headersList.get('x-forwarded-for') || 'unknown';
+        await logAction(user.id, 'LOGIN', 'User logged in', ip);
 
         // Return token and user info
         return NextResponse.json({
