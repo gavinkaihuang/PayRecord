@@ -36,6 +36,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
                 actualReceiveAmount: body.actualReceiveAmount !== undefined ? (body.actualReceiveAmount ? parseFloat(body.actualReceiveAmount) : null) : undefined,
                 notes: body.notes,
                 isRecurring: body.isRecurring,
+                recurringInterval: body.recurringInterval !== undefined ? parseInt(body.recurringInterval) : undefined,
             }
         });
 

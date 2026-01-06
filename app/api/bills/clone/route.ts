@@ -62,6 +62,9 @@ export async function POST(request: Request) {
             // Only clone recurring bills
             if (!bill.isRecurring) continue;
 
+            // Skip bills with custom intervals (client-side logic handles fetching these)
+            if (bill.recurringInterval && bill.recurringInterval > 1) continue;
+
             console.log('Processing Source Bill:', {
                 id: bill.id,
                 payee: bill.payee,

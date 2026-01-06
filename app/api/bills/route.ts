@@ -73,6 +73,7 @@ export async function POST(request: Request) {
                 actualReceiveAmount: body.actualReceiveAmount ? parseFloat(body.actualReceiveAmount) : null,
                 notes: body.notes,
                 isRecurring: body.isRecurring || false,
+                recurringInterval: body.recurringInterval ? parseInt(body.recurringInterval) : 1,
             }
         });
 

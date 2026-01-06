@@ -56,6 +56,7 @@ model Bill {
   // Other
   notes               String?
   isRecurring         Boolean   @default(false) // Whether to clone to next month with same amount
+  recurringInterval   Int       @default(1)     // Interval in months (e.g. 1=Monthly, 3=Quarterly)
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
