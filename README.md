@@ -52,3 +52,18 @@ cron
 注意：请确保 logs 目录存在，如果不存在请先创建：mkdir -p logs
 保存并退出。
 现在每天早上 8 点，系统会自动检查并发送提醒。您可以手动运行 node scripts/cron-telegram-notify.js 来测试效果。
+
+
+2、重置密码脚本已生成: scripts/reset-password.js
+
+使用方法:
+
+bash
+node scripts/reset-password.js <用户名>
+例如，重置用户 gavin 的密码:
+
+bash
+node scripts/reset-password.js gavin
+这将把密码重置为 gavin123。
+
+注意: 若在服务器上运行，请确保您在项目根目录下。
