@@ -38,3 +38,17 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 测试接口：
 http://localhost:3000/api-tester
+
+
+1、设置定时任务 (Cron Job)
+请在您的服务器上执行以下步骤以启用每天早上 8 点的自动提醒：
+
+打开 Crontab 编辑器:
+bash
+crontab -e
+添加以下行 (请根据实际路径修改):
+cron
+0 8 * * * /usr/bin/node /home/ubuntu/source/PayRecord/scripts/cron-telegram-notify.js >> /home/ubuntu/source/PayRecord/logs/cron.log 2>&1
+注意：请确保 logs 目录存在，如果不存在请先创建：mkdir -p logs
+保存并退出。
+现在每天早上 8 点，系统会自动检查并发送提醒。您可以手动运行 node scripts/cron-telegram-notify.js 来测试效果。
