@@ -105,12 +105,13 @@ export async function POST(request: Request) {
             }
 
             // Prepare new bill data
+            // Prepare new bill data
             const commonData = {
                 userId,
                 date: targetDate,
                 payee: bill.payee,
                 payer: bill.payer,
-                receiveAmount: bill.receiveAmount,
+                receiveAmount: null, // User requested not to clone amount
                 notes: bill.notes,
                 isRecurring: bill.isRecurring,
                 // Reset status fields
@@ -121,7 +122,7 @@ export async function POST(request: Request) {
 
             const billData = {
                 ...commonData,
-                payAmount: bill.payAmount,
+                payAmount: null, // User requested not to clone amount
             };
 
             console.log('Created Bill Data:', billData);
