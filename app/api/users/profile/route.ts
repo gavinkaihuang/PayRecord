@@ -21,6 +21,10 @@ export async function GET() {
             }
         });
 
+        if (!userData) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+
         return NextResponse.json(userData);
     } catch (error) {
         console.error('Error fetching profile:', error);

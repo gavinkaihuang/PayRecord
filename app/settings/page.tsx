@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GlassButton, GlassInput } from '../components/ui';
-import { User, Lock, Send, Shield, Activity, Save, Store, Upload, Image as ImageIcon } from 'lucide-react';
+import { User, Lock, Send, Shield, Activity, Save, Store, Upload, Image as ImageIcon, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function SettingsPage() {
@@ -50,7 +50,7 @@ export default function SettingsPage() {
                 setTelegramToken(data.telegramToken || '');
                 setTelegramChatId(data.telegramChatId || '');
             } else {
-                if (res.status === 401) router.push('/login');
+                if (res.status === 401 || res.status === 404) router.push('/login');
             }
         } catch (error) {
             console.error(error);
@@ -75,6 +75,8 @@ export default function SettingsPage() {
     // Merchants State
     const [merchants, setMerchants] = useState<{ name: string, icon: string | null }[]>([]);
     const [isUploadingMerchant, setIsUploadingMerchant] = useState<string | null>(null);
+    const [isAddingMerchant, setIsAddingMerchant] = useState(false);
+    const [newMerchantName, setNewMerchantName] = useState('');
 
     const fetchMerchants = async () => {
         try {
@@ -130,6 +132,53 @@ export default function SettingsPage() {
             alert('Failed to upload icon');
         } finally {
             setIsUploadingMerchant(null);
+        }
+    };
+
+    const handleAddMerchant = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMerchantName.trim()) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/merchants', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ name: newMerchantName.trim(), icon: null })
+            });
+
+            if (res.ok) {
+                setNewMerchantName('');
+                setIsAddingMerchant(false);
+                fetchMerchants();
+            } else {
+                alert('Failed to add merchant');
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleDeleteMerchant = async (name: string) => {
+        if (!confirm(`Are you sure you want to delete config for "${name}"? This will reset the icon.`)) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/merchants?name=${encodeURIComponent(name)}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                fetchMerchants();
+            } else {
+                alert('Failed to delete merchant');
+            }
+        } catch (error) {
+            console.error(error);
         }
     };
 
@@ -411,6 +460,36 @@ export default function SettingsPage() {
                                 Manage icons for your Payees and Payers.
                             </p>
 
+                            <div className="flex justify-end">
+                                {isAddingMerchant ? (
+                                    <form onSubmit={handleAddMerchant} className="flex gap-2 animate-fadeIn">
+                                        <GlassInput
+                                            value={newMerchantName}
+                                            onChange={e => setNewMerchantName(e.target.value)}
+                                            placeholder="Merchant Name"
+                                            className="w-48"
+                                            autoFocus
+                                        />
+                                        <GlassButton type="submit">Add</GlassButton>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsAddingMerchant(false)}
+                                            className="text-white/50 hover:text-white px-2"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </form>
+                                ) : (
+                                    <button
+                                        onClick={() => setIsAddingMerchant(true)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600/20 text-indigo-300 rounded-lg hover:bg-indigo-600/30 transition-colors"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        <span>Add Merchant</span>
+                                    </button>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {merchants.map((merchant) => (
                                     <div key={merchant.name} className="glass-panel p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
@@ -427,28 +506,38 @@ export default function SettingsPage() {
                                             </div>
                                         </div>
 
-                                        <div className="relative">
-                                            <input
-                                                type="file"
-                                                id={`upload-${merchant.name}`}
-                                                className="hidden"
-                                                accept="image/*"
-                                                onChange={(e) => e.target.files?.[0] && handleUploadIcon(merchant.name, e.target.files[0])}
-                                            />
-                                            <label
-                                                htmlFor={`upload-${merchant.name}`}
-                                                className={`p-2 rounded-lg cursor-pointer transition-colors flex items-center gap-2 ${merchant.icon ? 'text-white/30 hover:text-white hover:bg-white/10' : 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
-                                                    }`}
+                                        <div className="flex items-center gap-2">
+                                            <div className="relative">
+                                                <input
+                                                    type="file"
+                                                    id={`upload-${merchant.name}`}
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    onChange={(e) => e.target.files?.[0] && handleUploadIcon(merchant.name, e.target.files[0])}
+                                                />
+                                                <label
+                                                    htmlFor={`upload-${merchant.name}`}
+                                                    className={`p-2 rounded-lg cursor-pointer transition-colors flex items-center gap-2 ${merchant.icon ? 'text-white/30 hover:text-white hover:bg-white/10' : 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
+                                                        }`}
+                                                >
+                                                    {isUploadingMerchant === merchant.name ? (
+                                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="w-4 h-4" />
+                                                            <span className="text-sm">{merchant.icon ? 'Change' : 'Upload'}</span>
+                                                        </>
+                                                    )}
+                                                </label>
+                                            </div>
+
+                                            <button
+                                                onClick={() => handleDeleteMerchant(merchant.name)}
+                                                className="p-2 rounded-lg text-red-400/50 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                                title="Reset/Delete"
                                             >
-                                                {isUploadingMerchant === merchant.name ? (
-                                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                ) : (
-                                                    <>
-                                                        <Upload className="w-4 h-4" />
-                                                        <span className="text-sm">{merchant.icon ? 'Change' : 'Upload'}</span>
-                                                    </>
-                                                )}
-                                            </label>
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
                                 ))}

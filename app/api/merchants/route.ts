@@ -98,3 +98,33 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to save merchant', details: e.message }, { status: 500 });
     }
 }
+
+// DELETE: Remove a Merchant configuration (reset icon)
+export async function DELETE(request: Request) {
+    const user = await isAuthenticated();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    try {
+        const { searchParams } = new URL(request.url);
+        const name = searchParams.get('name');
+
+        if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+
+        await prisma.merchant.deleteMany({
+            where: {
+                userId: user.userId as string,
+                name: name
+            }
+        });
+
+        // Log Activity
+        const headersList = await headers();
+        const ip = headersList.get('x-forwarded-for') || 'unknown';
+        await logAction(user.userId as string, 'DELETE_MERCHANT', `Deleted merchant config for ${name}`, ip);
+
+        return NextResponse.json({ success: true });
+    } catch (e: any) {
+        console.error('Merchant delete error:', e);
+        return NextResponse.json({ error: 'Failed to delete merchant' }, { status: 500 });
+    }
+}
