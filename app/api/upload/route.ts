@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { headers } from 'next/headers';
-import { writeFile } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 
 async function isAuthenticated() {
@@ -33,12 +33,18 @@ export async function POST(request: Request) {
         const filename = `${uniqueSuffix}-${originalName}`;
 
         // Save to public/uploads/icons
+        // Save to public/uploads/icons
         const uploadDir = join(process.cwd(), 'public', 'uploads', 'icons');
         const filepath = join(uploadDir, filename);
 
+        console.log('Uploading to:', filepath); // Debug log
+
+        // Ensure directory exists
+        await mkdir(uploadDir, { recursive: true });
+
         await writeFile(filepath, buffer);
 
-        return NextResponse.json({ url: `/uploads/icons/${filename}` });
+        return NextResponse.json({ url: `/api/uploads/icons/${filename}` });
     } catch (e) {
         console.error('Upload error:', e);
         return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
