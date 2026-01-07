@@ -67,3 +67,38 @@ node scripts/reset-password.js gavin
 这将把密码重置为 gavin123。
 
 注意: 若在服务器上运行，请确保您在项目根目录下。
+
+3、服务器升级说明 (v1.1 - Global Merchant Icons)
+
+如果您正在从旧版本升级，请按照以下步骤操作：
+
+1. **拉取最新代码**
+   在项目根目录下运行：
+   ```bash
+   git pull
+   ```
+
+2. **数据库迁移 (重要)**
+   本次更新将商户图标改为全局共享，会删除 `Merchant` 表中的 `userId` 字段。
+   **注意**: 现有的商户图标配置可能会丢失关联，或者如果存在同名商户可能会导致冲突。建议先备份数据库 (`prisma/dev.db`)。
+
+   应用更改：
+   ```bash
+   npx prisma db push
+   ```
+   如果提示有数据丢失风险，请输入 `y` 确认。
+
+3. **重新构建**
+   更新依赖并重新构建应用：
+   ```bash
+   npm install
+   npm run build
+   ```
+
+4. **重启服务**
+   假设您使用 PM2 管理进程：
+   ```bash
+   pm2 restart payrecord
+   ```
+   或者如果您直接运行：
+   Ctrl+C 停止当前进程，然后重新运行 `npm start`。

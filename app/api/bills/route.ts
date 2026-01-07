@@ -44,7 +44,7 @@ export async function GET(request: Request) {
             }
         });
 
-        const enrichedBills = await enrichBillsWithIcons(bills, user.userId as string);
+        const enrichedBills = await enrichBillsWithIcons(bills);
         return NextResponse.json(enrichedBills);
     } catch (e) {
         return NextResponse.json({ error: 'Failed to fetch bills' }, { status: 500 });
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         const ip = headersList.get('x-forwarded-for') || 'unknown';
         await logAction(user.userId as string, 'CREATE_BILL', `Created bill for ${bill.payee || bill.payer || 'Unknown'}`, ip);
 
-        const enrichedBill = await enrichBillWithIcons(bill, user.userId as string);
+        const enrichedBill = await enrichBillWithIcons(bill);
         return NextResponse.json(enrichedBill);
     } catch (e) {
         console.error(e);

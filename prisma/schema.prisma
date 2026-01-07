@@ -21,19 +21,15 @@ model User {
   telegramChatId  String?
   logs            Log[]
   bills           Bill[]
-  merchants       Merchant[]
+
 }
 
 model Merchant {
   id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
+  name      String   @unique
   icon      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  @@unique([userId, name])
 }
 
 model Bill {

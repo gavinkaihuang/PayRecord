@@ -1,10 +1,9 @@
 import prisma from '@/lib/prisma';
 
-export async function enrichBillsWithIcons(bills: any[], userId: string) {
-    // 1. Fetch all merchants for this user that have icons
+export async function enrichBillsWithIcons(bills: any[], userId?: string) {
+    // 1. Fetch all merchants that have icons (Global)
     const merchants = await prisma.merchant.findMany({
         where: {
-            userId,
             icon: { not: null }
         },
         select: { name: true, icon: true }
@@ -23,7 +22,7 @@ export async function enrichBillsWithIcons(bills: any[], userId: string) {
     }));
 }
 
-export async function enrichBillWithIcons(bill: any, userId: string) {
-    const result = await enrichBillsWithIcons([bill], userId);
+export async function enrichBillWithIcons(bill: any, userId?: string) {
+    const result = await enrichBillsWithIcons([bill]);
     return result[0];
 }
