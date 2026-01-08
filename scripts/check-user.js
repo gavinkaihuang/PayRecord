@@ -2,26 +2,17 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-    const username = 'gavin';
-    console.log(`Checking for user: ${username}`);
-
     const user = await prisma.user.findUnique({
-        where: { username },
+        where: { username: 'gavin' },
+        select: {
+            username: true,
+            telegramToken: true,
+            telegramChatId: true
+        }
     });
-
-    if (user) {
-        console.log('User found:', user.username);
-    } else {
-        console.log('User NOT found');
-    }
+    console.log('User Data in DB:', user);
 }
 
 main()
-    .then(async () => {
-        await prisma.$disconnect();
-    })
-    .catch(async (e) => {
-        console.error(e);
-        await prisma.$disconnect();
-        process.exit(1);
-    });
+    .catch(console.error)
+    .finally(() => prisma.$disconnect());
