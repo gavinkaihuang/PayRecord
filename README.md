@@ -102,3 +102,7 @@ node scripts/reset-password.js gavin
    ```
    或者如果您直接运行：
    Ctrl+C 停止当前进程，然后重新运行 `npm start`。
+
+
+日历订阅：
+You can now subscribe to this calendar on your iPhone using the URL format: https://<your-domain>/api/calendar/<your-user-id>

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GlassButton, GlassInput } from '../components/ui';
-import { User, Lock, Send, Shield, Activity, Save, Store, Upload, Image as ImageIcon, Plus, Trash2 } from 'lucide-react';
+import { User, Lock, Send, Shield, Activity, Save, Store, Upload, Image as ImageIcon, Plus, Trash2, Copy } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function SettingsPage() {
@@ -12,6 +12,7 @@ export default function SettingsPage() {
 
     // Profile State
     const [username, setUsername] = useState('');
+    const [userId, setUserId] = useState('');
     const [nickname, setNickname] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -46,6 +47,7 @@ export default function SettingsPage() {
             if (res.ok) {
                 const data = await res.json();
                 setUsername(data.username);
+                setUserId(data.id || '');
                 setNickname(data.nickname || '');
                 setTelegramToken(data.telegramToken || '');
                 setTelegramChatId(data.telegramChatId || '');
@@ -294,6 +296,46 @@ export default function SettingsPage() {
                                     <Shield className="w-5 h-5 text-indigo-400" />
                                     Profile Information
                                 </h2>
+
+                                <div>
+                                    <label className="block text-sm text-white/50 mb-2">User ID (for Calendar Subscription)</label>
+                                    <div className="flex gap-2 max-w-md">
+                                        <GlassInput
+                                            value={userId}
+                                            readOnly
+                                            className="w-full opacity-80 cursor-default font-mono text-sm"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (navigator.clipboard) {
+                                                    navigator.clipboard.writeText(userId)
+                                                        .then(() => alert('User ID copied to clipboard'))
+                                                        .catch(console.error);
+                                                } else {
+                                                    // Fallback for older browsers or non-secure contexts
+                                                    const textArea = document.createElement("textarea");
+                                                    textArea.value = userId;
+                                                    document.body.appendChild(textArea);
+                                                    textArea.focus();
+                                                    textArea.select();
+                                                    try {
+                                                        document.execCommand('copy');
+                                                        alert('User ID copied to clipboard');
+                                                    } catch (err) {
+                                                        console.error('Fallback copy failed', err);
+                                                    }
+                                                    document.body.removeChild(textArea);
+                                                }
+                                            }}
+                                            className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/70 transition-colors flex items-center gap-2"
+                                            title="Copy ID"
+                                        >
+                                            <Copy className="w-4 h-4" />
+                                            <span className="sr-only">Copy</span>
+                                        </button>
+                                    </div>
+                                </div>
 
                                 <div>
                                     <label className="block text-sm text-white/50 mb-2">Username</label>
