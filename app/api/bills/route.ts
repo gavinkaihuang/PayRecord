@@ -74,6 +74,7 @@ export async function POST(request: Request) {
                 notes: body.notes,
                 isRecurring: body.isRecurring || false,
                 recurringInterval: body.recurringInterval ? parseInt(body.recurringInterval) : 1,
+                includeInStats: body.includeInStats !== undefined ? Boolean(body.includeInStats) : true,
             }
         });
 

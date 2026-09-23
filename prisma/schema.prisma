@@ -53,6 +53,7 @@ model Bill {
   notes               String?
   isRecurring         Boolean   @default(false) // Whether to clone to next month with same amount
   recurringInterval   Int       @default(1)     // Interval in months (e.g. 1=Monthly, 3=Quarterly)
+  includeInStats      Boolean   @default(true)  // Whether to count in income/expense statistics (e.g. credit card repayment)
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

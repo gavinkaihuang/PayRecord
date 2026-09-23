@@ -106,3 +106,39 @@ node scripts/reset-password.js gavin
 
 日历订阅：
 You can now subscribe to this calendar on your iPhone using the URL format: https://<your-domain>/api/calendar/<your-user-id>
+
+4. 服务器升级说明 (v1.2 - Include in Stats)
+
+本次更新为 `Bill` 表新增 `includeInStats` 字段（是否计入收支统计）。
+用途：信用卡还款等账单如果计入统计，会与当月信用卡消费重复计算。现在可以在新增/编辑账单时取消勾选 "Count in Stats?"，该账单将不计入 Dashboard 的收支汇总。
+
+**注意**: 历史数据不受影响 —— 所有既有账单默认 `includeInStats = true`（继续计入统计），统计结果与升级前完全一致。
+
+升级步骤：
+
+1. **备份现有数据库（重要）**
+   ```bash
+   cp prisma/dev.db prisma/dev.db.bak.$(date +%Y%m%d)
+   ```
+
+2. **拉取最新代码**
+   ```bash
+   git pull
+   ```
+
+3. **应用数据库变更**
+   ```bash
+   npx prisma db push
+   ```
+   本次变更为新增一个带默认值的字段（非破坏性 `ALTER TABLE ADD COLUMN`），不会删除或修改任何现有数据，不会提示数据丢失风险。
+
+4. **重新构建**
+   ```bash
+   npm install
+   npm run build
+   ```
+
+5. **重启服务**
+   ```bash
+   pm2 restart payrecord
+   ```

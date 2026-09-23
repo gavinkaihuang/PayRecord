@@ -114,6 +114,7 @@ export async function POST(request: Request) {
                 receiveAmount: null, // User requested not to clone amount
                 notes: bill.notes,
                 isRecurring: bill.isRecurring,
+                includeInStats: bill.includeInStats,
                 // Reset status fields
                 isPaid: false,
                 paidDate: null,

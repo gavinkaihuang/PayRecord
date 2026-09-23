@@ -37,6 +37,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
                 notes: body.notes,
                 isRecurring: body.isRecurring,
                 recurringInterval: body.recurringInterval !== undefined ? parseInt(body.recurringInterval) : undefined,
+                includeInStats: body.includeInStats !== undefined ? Boolean(body.includeInStats) : undefined,
             }
         });
 

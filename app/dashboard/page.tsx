@@ -18,6 +18,7 @@ interface Bill {
     actualReceiveAmount?: number;
     notes?: string;
     isRecurring: boolean;
+    includeInStats: boolean;
 }
 
 export default function Dashboard() {
@@ -145,10 +146,11 @@ export default function Dashboard() {
         setIsModalOpen(true);
     }
 
-    // Calculate totals
-    const totalPay = bills.reduce((sum, b) => sum + (b.payAmount || 0), 0);
-    const totalReceive = bills.reduce((sum, b) => sum + (b.receiveAmount || 0), 0);
-    const totalActualPay = bills.filter(b => b.isPaid).reduce((sum, b) => sum + (b.payAmount || 0), 0);
+    // Calculate totals (exclude bills marked as not counted, e.g. credit card repayment)
+    const statsBills = bills.filter(b => b.includeInStats !== false);
+    const totalPay = statsBills.reduce((sum, b) => sum + (b.payAmount || 0), 0);
+    const totalReceive = statsBills.reduce((sum, b) => sum + (b.receiveAmount || 0), 0);
+    const totalActualPay = statsBills.filter(b => b.isPaid).reduce((sum, b) => sum + (b.payAmount || 0), 0);
 
     return (
         <div className="min-h-screen p-6 pb-20">
@@ -217,14 +219,15 @@ export default function Dashboard() {
                                 <th className="p-4 font-medium text-white/70">Amount (In)</th>
                                 <th className="p-4 font-medium text-white/70">Notes</th>
                                 <th className="p-4 font-medium text-white/70">Recurring</th>
+                                <th className="p-4 font-medium text-white/70">In Stats</th>
                                 <th className="p-4 font-medium text-white/70 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan={9} className="p-8 text-center text-white/30">Loading...</td></tr>
+                                <tr><td colSpan={10} className="p-8 text-center text-white/30">Loading...</td></tr>
                             ) : bills.length === 0 ? (
-                                <tr><td colSpan={9} className="p-8 text-center text-white/30">No bills for this month</td></tr>
+                                <tr><td colSpan={10} className="p-8 text-center text-white/30">No bills for this month</td></tr>
                             ) : (
                                 bills.map(bill => (
                                     <tr key={bill.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
@@ -266,6 +269,9 @@ export default function Dashboard() {
                                         <td className="p-4">{bill.receiveAmount ? `¥ ${bill.receiveAmount}` : '-'}</td>
                                         <td className="p-4 max-w-xs truncate" title={bill.notes || ''}>{bill.notes || '-'}</td>
                                         <td className="p-4 text-center">{bill.isRecurring ? 'Yes' : 'No'}</td>
+                                        <td className="p-4 text-center">
+                                            <span className={bill.includeInStats === false ? 'text-white/30' : ''}>{bill.includeInStats === false ? 'No' : 'Yes'}</span>
+                                        </td>
                                         <td className="p-4 text-right space-x-2">
                                             <button onClick={() => openEditModal(bill)} className="text-indigo-400 hover:text-indigo-300">Edit</button>
                                             <button onClick={() => handleDelete(bill.id)} className="text-red-400 hover:text-red-300">Del</button>

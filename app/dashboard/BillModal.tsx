@@ -17,6 +17,7 @@ interface Bill {
     actualReceiveAmount?: number;
     notes?: string;
     isRecurring: boolean;
+    includeInStats: boolean;
 }
 
 interface Props {
@@ -39,7 +40,8 @@ export default function BillModal({ isOpen, onClose, book, year, month, onSucces
         receiveAmount: '',
         actualReceiveAmount: '',
         notes: '',
-        isRecurring: false
+        isRecurring: false,
+        includeInStats: true
     });
 
     useEffect(() => {
@@ -55,7 +57,8 @@ export default function BillModal({ isOpen, onClose, book, year, month, onSucces
                 receiveAmount: book.receiveAmount?.toString() || '',
                 actualReceiveAmount: book.actualReceiveAmount?.toString() || '',
                 notes: book.notes || '',
-                isRecurring: book.isRecurring
+                isRecurring: book.isRecurring,
+                includeInStats: book.includeInStats !== false
             });
         } else {
             const defaultDate = new Date(year, month - 1, new Date().getDate());
@@ -69,7 +72,8 @@ export default function BillModal({ isOpen, onClose, book, year, month, onSucces
                 receiveAmount: '',
                 actualReceiveAmount: '',
                 notes: '',
-                isRecurring: false
+                isRecurring: false,
+                includeInStats: true
             });
         }
     }, [book, year, month, isOpen]);
@@ -130,6 +134,12 @@ export default function BillModal({ isOpen, onClose, book, year, month, onSucces
                             <label className="flex items-center cursor-pointer gap-2">
                                 <input type="checkbox" checked={formData.isRecurring} onChange={e => setFormData({ ...formData, isRecurring: e.target.checked })} className="form-checkbox bg-transparent border-white/30 rounded text-indigo-500 w-5 h-5" />
                                 <span className="text-white/80 select-none">Next Month Recurring?</span>
+                            </label>
+                        </div>
+                        <div className="flex items-center pt-6">
+                            <label className="flex items-center cursor-pointer gap-2">
+                                <input type="checkbox" checked={formData.includeInStats} onChange={e => setFormData({ ...formData, includeInStats: e.target.checked })} className="form-checkbox bg-transparent border-white/30 rounded text-indigo-500 w-5 h-5" />
+                                <span className="text-white/80 select-none">Count in Stats?</span>
                             </label>
                         </div>
                     </div>
