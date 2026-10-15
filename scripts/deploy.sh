@@ -15,13 +15,15 @@
 #   PR_REF       要部署的分支/commit,默认 feat/api-key-auth
 #   PR_PM2_NAME  pm2 进程名,默认 payrecord
 #   PR_BACKUP_DIR 备份目录,默认 <repo>/backups
+#   PR_REPO_ROOT 目标项目目录(脚本不在项目内时用),默认脚本自身所在仓库
 #   PR_SKIP_SMOKE=1  跳过升级后冒烟(调试用)
+#   PR_YES=1     跳过所有确认(脚本化/自担风险)
 set -euo pipefail
 
 # ---------- 配置 ----------
 PR_REF="${PR_REF:-feat/api-key-auth}"
 PR_PM2_NAME="${PR_PM2_NAME:-payrecord}"
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="${PR_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 PR_BACKUP_DIR="${PR_BACKUP_DIR:-$REPO_ROOT/backups}"
 DB_PATH="$REPO_ROOT/prisma/dev.db"
 ENV_PATH="$REPO_ROOT/.env"
