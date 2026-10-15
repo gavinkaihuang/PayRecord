@@ -1,20 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { enrichBillWithIcons } from '@/lib/enrich';
 import { logAction } from '@/lib/logger';
-
-async function isAuthenticated() {
-    const headersList = await headers();
-    const authHeader = headersList.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.split(' ')[1];
-    return await verifyToken(token);
-}
+import { parseAmount } from '@/lib/parse';
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
 
@@ -28,12 +21,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
             data: {
                 date: body.date ? new Date(body.date) : undefined,
                 payee: body.payee,
-                payAmount: body.payAmount !== undefined ? (body.payAmount ? parseFloat(body.payAmount) : null) : undefined,
+                payAmount: body.payAmount !== undefined ? parseAmount(body.payAmount) : undefined,
                 isPaid: body.isPaid,
                 paidDate: body.paidDate ? new Date(body.paidDate) : (body.paidDate === null ? null : undefined),
                 payer: body.payer,
-                receiveAmount: body.receiveAmount !== undefined ? (body.receiveAmount ? parseFloat(body.receiveAmount) : null) : undefined,
-                actualReceiveAmount: body.actualReceiveAmount !== undefined ? (body.actualReceiveAmount ? parseFloat(body.actualReceiveAmount) : null) : undefined,
+                receiveAmount: body.receiveAmount !== undefined ? parseAmount(body.receiveAmount) : undefined,
+                actualReceiveAmount: body.actualReceiveAmount !== undefined ? parseAmount(body.actualReceiveAmount) : undefined,
                 notes: body.notes,
                 isRecurring: body.isRecurring,
                 recurringInterval: body.recurringInterval !== undefined ? parseInt(body.recurringInterval) : undefined,
@@ -54,7 +47,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
 

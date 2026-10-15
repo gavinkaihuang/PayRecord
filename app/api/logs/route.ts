@@ -1,18 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { getAuthUser } from '@/lib/auth';
 
-async function isAuthenticated() {
-    const headersList = await headers();
-    const authHeader = headersList.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.split(' ')[1];
-    return await verifyToken(token);
-}
 
 export async function GET(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {

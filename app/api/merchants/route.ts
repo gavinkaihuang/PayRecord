@@ -1,23 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { logAction } from '@/lib/logger';
-
-async function isAuthenticated() {
-    const headersList = await headers();
-    const authHeader = headersList.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.split(' ')[1];
-    return await verifyToken(token);
-}
 
 // GET: Fetch all unique merchants (Payees + Payers)
 // 1. Get explicitly saved merchants (Global)
 // 2. Get distinct payees/payers from bills (User specific context is still relevant for discovery, but icons are global)
 // 3. Merge them, prioritizing explicitly saved icons
 export async function GET(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
@@ -66,7 +58,7 @@ export async function GET(request: Request) {
 
 // POST: Create or Update a Merchant (Set Icon) - Global
 export async function POST(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
@@ -98,7 +90,7 @@ export async function POST(request: Request) {
 
 // DELETE: Remove a Merchant configuration (reset icon) - Global
 export async function DELETE(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {

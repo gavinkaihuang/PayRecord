@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { hashPassword, verifyToken } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { hashPassword, getAuthUser } from '@/lib/auth';
 
-async function isAuthenticated() {
-    const headersList = await headers();
-    const authHeader = headersList.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.split(' ')[1];
-    return await verifyToken(token);
-}
 
 // Get all users
 export async function GET(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
@@ -28,7 +20,7 @@ export async function GET(request: Request) {
 
 // Create new user
 export async function POST(request: Request) {
-    const currentUser = await isAuthenticated();
+    const currentUser = await getAuthUser();
     if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Ideally check if currentUser is admin? For now, any logged in user can add user per req "User create new user" (ambiguous, but usually restricted. I'll allow logged in users for now as simplified interpretation).

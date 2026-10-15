@@ -46,3 +46,8 @@ next-env.d.ts
 /public/uploads/icons
 prisma/dev.db
 logs/
+
+# local test artifacts
+prisma/*.db
+prisma/*.db-journal
+.env

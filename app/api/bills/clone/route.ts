@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { logAction } from '@/lib/logger';
 
-async function isAuthenticated() {
-    const headersList = await headers();
-    const authHeader = headersList.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.split(' ')[1];
-    return await verifyToken(token);
-}
-
 export async function POST(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { year, month } = await request.json(); // Source year/month

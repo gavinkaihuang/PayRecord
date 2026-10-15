@@ -1,21 +1,14 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { enrichBillsWithIcons, enrichBillWithIcons } from '@/lib/enrich';
 import { logAction } from '@/lib/logger';
-
-async function isAuthenticated() {
-    const headersList = await headers();
-    const authHeader = headersList.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.split(' ')[1];
-    return await verifyToken(token);
-}
+import { parseAmount } from '@/lib/parse';
 
 // GET bills for a specific month
 export async function GET(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
@@ -53,7 +46,7 @@ export async function GET(request: Request) {
 
 // Create a bill
 export async function POST(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
@@ -65,12 +58,12 @@ export async function POST(request: Request) {
                 userId: user.userId as string,
                 date: new Date(body.date),
                 payee: body.payee,
-                payAmount: body.payAmount ? parseFloat(body.payAmount) : null,
+                payAmount: parseAmount(body.payAmount),
                 isPaid: body.isPaid || false,
                 paidDate: body.paidDate ? new Date(body.paidDate) : null,
                 payer: body.payer,
-                receiveAmount: body.receiveAmount ? parseFloat(body.receiveAmount) : null,
-                actualReceiveAmount: body.actualReceiveAmount ? parseFloat(body.actualReceiveAmount) : null,
+                receiveAmount: parseAmount(body.receiveAmount),
+                actualReceiveAmount: parseAmount(body.actualReceiveAmount),
                 notes: body.notes,
                 isRecurring: body.isRecurring || false,
                 recurringInterval: body.recurringInterval ? parseInt(body.recurringInterval) : 1,
@@ -92,7 +85,7 @@ export async function POST(request: Request) {
 }
 // Bulk DELETE bills for a specific month
 export async function DELETE(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);

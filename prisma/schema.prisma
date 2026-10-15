@@ -19,6 +19,7 @@ model User {
   updatedAt DateTime @updatedAt
   telegramToken   String?
   telegramChatId  String?
+  apiKeyHash      String?  @unique // bcrypt hash of machine API key (X-API-Key), null = no key issued
   logs            Log[]
   bills           Bill[]
 

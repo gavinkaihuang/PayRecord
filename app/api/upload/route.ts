@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
-import { headers } from 'next/headers';
+import prisma from '@/lib/prisma';
+import { getAuthUser } from '@/lib/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 
-async function isAuthenticated() {
-    const headersList = await headers();
-    const authHeader = headersList.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.split(' ')[1];
-    return await verifyToken(token);
-}
-
 export async function POST(request: Request) {
-    const user = await isAuthenticated();
+    const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
@@ -32,7 +24,6 @@ export async function POST(request: Request) {
         const originalName = file.name.replace(/[^a-zA-Z0-9.]/g, ''); // Sanitize
         const filename = `${uniqueSuffix}-${originalName}`;
 
-        // Save to public/uploads/icons
         // Save to public/uploads/icons
         const uploadDir = join(process.cwd(), 'public', 'uploads', 'icons');
         const filepath = join(uploadDir, filename);
