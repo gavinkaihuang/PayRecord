@@ -99,6 +99,16 @@ async function findApiKey(apiKey: string): Promise<{
     return null;
 }
 
+// API keys are only honored when the request arrived through the trusted HTTPS
+// proxy (Caddy injects X-Proxy-Secret). Direct-to-port callers on plaintext
+// 8082 cannot use machine keys - the key would travel unencrypted. When
+// PROXY_HEADER_SECRET is unset the gate is disabled (local dev / pre-Caddy).
+function proxyGateOk(headersList: Headers): boolean {
+    const secret = process.env.PROXY_HEADER_SECRET;
+    if (!secret) return true;
+    return headersList.get('x-proxy-secret') === secret;
+}
+
 // Unified auth for API routes: X-API-Key first (machine/Hermes/Muse), then
 // Bearer JWT (web). If an X-API-Key header is present it MUST be valid - no
 // fall-through to JWT, so a bad key is always rejected.
@@ -106,6 +116,7 @@ export async function getAuthUser(): Promise<AuthContext | null> {
     const headersList = await headers();
     const apiKey = headersList.get('x-api-key');
     if (apiKey) {
+        if (!proxyGateOk(headersList)) return null; // key outside TLS proxy = invalid
         const found = await findApiKey(apiKey);
         if (!found) return null;
         // fire-and-forget lastUsedAt (never block a request on this)
@@ -170,6 +181,7 @@ export async function getUser() {
     const headersList = await headers();
     const apiKey = headersList.get('x-api-key');
     if (apiKey) {
+        if (!proxyGateOk(headersList)) return null; // key outside TLS proxy = invalid
         const found = await findApiKey(apiKey);
         return found ? { id: found.userId, username: found.username } : null;
     }
