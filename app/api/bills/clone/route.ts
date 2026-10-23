@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAuthUser } from '@/lib/auth';
+import { getAuthUser, requireScope } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { logAction } from '@/lib/logger';
 
 export async function POST(request: Request) {
+    const guard = await requireScope('write');
+    if (guard) return guard;
     const user = await getAuthUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { year, month } = await request.json(); // Source year/month
 
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
     }
 
     try {
-        const userId = user.userId as string;
+        const userId = user!.userId as string;
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0, 23, 59, 59);
 
@@ -145,7 +146,8 @@ export async function POST(request: Request) {
                 userId,
                 'CLONE_BILLS',
                 `Cloned ${billsToCreate.length} bills from ${year}-${month}. Deleted ${billsToDelete.length} unedited. Skipped ${skippedCount}.`,
-                ip
+                ip,
+                user!.actor
             );
         }
 

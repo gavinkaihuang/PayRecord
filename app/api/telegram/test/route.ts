@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getUser } from '@/lib/auth';
+import { getUser, requireWebUser } from '@/lib/auth';
 import { sendTelegramMessage } from '@/lib/telegram';
 
 export async function POST(request: Request) {
     try {
+        const guard = await requireWebUser();
+        if (guard) return guard;
         const user = await getUser();
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

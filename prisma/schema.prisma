@@ -19,10 +19,27 @@ model User {
   updatedAt DateTime @updatedAt
   telegramToken   String?
   telegramChatId  String?
-  apiKeyHash      String?  @unique // bcrypt hash of machine API key (X-API-Key), null = no key issued
+  apiKeyHash      String?  @unique // DEPRECATED: superseded by ApiKey table (kept so db push never drops data; migration moves hashes to ApiKey rows)
   logs            Log[]
   bills           Bill[]
+  apiKeys         ApiKey[]
 
+}
+
+// Machine API keys (X-API-Key). A user may hold several (e.g. one per agent:
+// Hermes full access, Muse read+write). Plaintext keys are never stored.
+model ApiKey {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String    // human label, e.g. "hermes", "muse", "legacy"
+  keyHash   String    // bcrypt hash
+  scopes    String    @default("read,write,delete") // comma-separated: read | write | delete
+  lastUsedAt DateTime?
+  createdAt DateTime  @default(now())
+  revokedAt DateTime? // null = active; set = key rejected regardless of hash
+
+  @@unique([userId, name])
 }
 
 model Merchant {
@@ -52,6 +69,7 @@ model Bill {
 
   // Other
   notes               String?
+  dedupeKey           String?   @unique // idempotency token for machine writers: same key returns existing bill instead of duplicating
   isRecurring         Boolean   @default(false) // Whether to clone to next month with same amount
   recurringInterval   Int       @default(1)     // Interval in months (e.g. 1=Monthly, 3=Quarterly)
   includeInStats      Boolean   @default(true)  // Whether to count in income/expense statistics (e.g. credit card repayment)
@@ -67,5 +85,6 @@ model Log {
   action    String
   details   String?
   ip        String?
+  actor     String?  // who did it: "user:<username>" (web JWT) or "key:<name>" (machine key) - answers "was it Muse or Hermes"
   createdAt DateTime @default(now())
 }

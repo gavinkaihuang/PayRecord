@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAuthUser } from '@/lib/auth';
+import { getAuthUser, requireScope } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { enrichBillsWithIcons, enrichBillWithIcons } from '@/lib/enrich';
 import { logAction } from '@/lib/logger';
@@ -8,8 +8,9 @@ import { parseAmount } from '@/lib/parse';
 
 // GET bills for a specific month
 export async function GET(request: Request) {
+    const guard = await requireScope('read');
+    if (guard) return guard;
     const user = await getAuthUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const now = new Date();
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
 
         const bills = await prisma.bill.findMany({
             where: {
-                userId: user.userId as string,
+                userId: user!.userId as string,
                 date: {
                     gte: startDate,
                     lte: endDate
@@ -46,16 +47,31 @@ export async function GET(request: Request) {
 
 // Create a bill
 export async function POST(request: Request) {
+    const guard = await requireScope('write');
+    if (guard) return guard;
     const user = await getAuthUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
         const body = await request.json();
         // Validation could be added here
 
+        // Idempotency for machine writers: when dedupeKey is provided and a
+        // bill with that key already exists, return it with duplicated:true
+        // instead of creating a second copy. Agents retrying or replaying the
+        // same logical transaction must not double-record.
+        if (body.dedupeKey) {
+            const existing = await prisma.bill.findUnique({
+                where: { dedupeKey: String(body.dedupeKey) }
+            });
+            if (existing) {
+                const enriched = await enrichBillWithIcons(existing);
+                return NextResponse.json({ ...enriched, duplicated: true });
+            }
+        }
+
         const bill = await prisma.bill.create({
             data: {
-                userId: user.userId as string,
+                userId: user!.userId as string,
                 date: new Date(body.date),
                 payee: body.payee,
                 payAmount: parseAmount(body.payAmount),
@@ -65,6 +81,7 @@ export async function POST(request: Request) {
                 receiveAmount: parseAmount(body.receiveAmount),
                 actualReceiveAmount: parseAmount(body.actualReceiveAmount),
                 notes: body.notes,
+                dedupeKey: body.dedupeKey ? String(body.dedupeKey) : null,
                 isRecurring: body.isRecurring || false,
                 recurringInterval: body.recurringInterval ? parseInt(body.recurringInterval) : 1,
                 includeInStats: body.includeInStats !== undefined ? Boolean(body.includeInStats) : true,
@@ -74,7 +91,7 @@ export async function POST(request: Request) {
         // Log Activity
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for') || 'unknown';
-        await logAction(user.userId as string, 'CREATE_BILL', `Created bill for ${bill.payee || bill.payer || 'Unknown'}`, ip);
+        await logAction(user!.userId as string, 'CREATE_BILL', `Created bill for ${bill.payee || bill.payer || 'Unknown'}`, ip, user!.actor);
 
         const enrichedBill = await enrichBillWithIcons(bill);
         return NextResponse.json(enrichedBill);
@@ -83,10 +100,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to create bill' }, { status: 500 });
     }
 }
+
 // Bulk DELETE bills for a specific month
 export async function DELETE(request: Request) {
+    const guard = await requireScope('delete');
+    if (guard) return guard;
     const user = await getAuthUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const yearStr = searchParams.get('year');
@@ -109,7 +128,7 @@ export async function DELETE(request: Request) {
 
         const result = await prisma.bill.deleteMany({
             where: {
-                userId: user.userId as string,
+                userId: user!.userId as string,
                 date: {
                     gte: startDate,
                     lte: endDate
@@ -120,7 +139,7 @@ export async function DELETE(request: Request) {
         // Log Activity
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for') || 'unknown';
-        await logAction(user.userId as string, 'BULK_DELETE_BILLS', `Deleted ${result.count} bills for ${year}-${month}`, ip);
+        await logAction(user!.userId as string, 'BULK_DELETE_BILLS', `Deleted ${result.count} bills for ${year}-${month}`, ip, user!.actor);
 
         return NextResponse.json({ deletedCount: result.count });
     } catch (e) {

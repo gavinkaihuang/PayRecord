@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAuthUser } from '@/lib/auth';
+import { getAuthUser, requireScope } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { logAction } from '@/lib/logger';
 
@@ -9,11 +9,12 @@ import { logAction } from '@/lib/logger';
 // 2. Get distinct payees/payers from bills (User specific context is still relevant for discovery, but icons are global)
 // 3. Merge them, prioritizing explicitly saved icons
 export async function GET(request: Request) {
+    const guard = await requireScope('read');
+    if (guard) return guard;
     const user = await getAuthUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
-        const userId = user.userId as string;
+        const userId = user!.userId as string;
 
         // 1. Fetch ALL saved merchants (Global)
         const savedMerchants = await prisma.merchant.findMany({
@@ -58,8 +59,9 @@ export async function GET(request: Request) {
 
 // POST: Create or Update a Merchant (Set Icon) - Global
 export async function POST(request: Request) {
+    const guard = await requireScope('write');
+    if (guard) return guard;
     const user = await getAuthUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
         const { name, icon } = await request.json();
@@ -79,7 +81,7 @@ export async function POST(request: Request) {
         // Log Activity
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for') || 'unknown';
-        await logAction(user.userId as string, 'UPDATE_MERCHANT_ICON', `Updated global icon for ${merchant.name}`, ip);
+        await logAction(user!.userId as string, 'UPDATE_MERCHANT_ICON', `Updated global icon for ${merchant.name}`, ip, user!.actor);
 
         return NextResponse.json(merchant);
     } catch (e: any) {
@@ -90,8 +92,9 @@ export async function POST(request: Request) {
 
 // DELETE: Remove a Merchant configuration (reset icon) - Global
 export async function DELETE(request: Request) {
+    const guard = await requireScope('delete');
+    if (guard) return guard;
     const user = await getAuthUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
         const { searchParams } = new URL(request.url);
@@ -108,7 +111,7 @@ export async function DELETE(request: Request) {
         // Log Activity
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for') || 'unknown';
-        await logAction(user.userId as string, 'DELETE_MERCHANT', `Deleted global merchant config for ${name}`, ip);
+        await logAction(user!.userId as string, 'DELETE_MERCHANT', `Deleted global merchant config for ${name}`, ip, user!.actor);
 
         return NextResponse.json({ success: true });
     } catch (e: any) {

@@ -8,20 +8,29 @@
 
 | 方式 | 请求头 | 适用场景 | 有效期 |
 |------|--------|----------|--------|
-| API Key | `X-API-Key: prk_xxx` | 机器/脚本/Agent 长期调用 | 长期，手动轮换 |
+| API Key | `X-API-Key: <key>` | 机器/脚本/Agent 长期调用 | 长期，手动轮换 |
 | JWT | `Authorization: Bearer <token>` | 网页端 | 24 小时 |
 
 规则：
 
 - 两种头同时存在时，以 `X-API-Key` 为准；key 无效则直接 401，**不会**回退到 JWT。
 - 未认证或认证失败统一返回 `401 {"error":"Unauthorized"}`。
-- API Key 只存 bcrypt 哈希（`User.apiKeyHash`），明文仅在生成时打印一次。
+- API Key 只存 bcrypt 哈希（`ApiKey.keyHash`），明文仅在生成时打印一次。
+- **每个用户可持有多把 key**（一 agent 一把，如 hermes / muse），互不影响、独立吊销。
+- **key 有权限范围（scopes）**：`read` / `write` / `delete`。超出范围的请求返回 `403 {"error":"API key lacks required scope: ..."}`。JWT（网页）不受 scope 限制。
+- **部分接口仅限网页 JWT**（账户/凭证类）：`/api/users*`、`/api/users/profile`、`/api/telegram/test`、`/api/upload`。持有有效 API key 也返回 403 —— Agent 不能改密码/换 TG 绑定/传文件。
+- 每次写操作的审计日志带 `actor` 字段（`key:<name>` 或 `user:<username>`），可追溯"是谁记的账"。
+- 升级兼容：旧版单 key（`User.apiKeyHash`）在首次成功调用时自动迁移为名为 `legacy` 的多 key 记录，无需手工处理。
 
 ### API Key 管理（服务器命令行）
 
 ```bash
-node scripts/generate-api-key.js <username>            # 生成/轮换，打印明文一次
-node scripts/generate-api-key.js <username> --remove   # 吊销
+# 生成/轮换一把命名 key（明文只打印一次）
+node scripts/generate-api-key.js <username> --name hermes                      # 全权限
+node scripts/generate-api-key.js <username> --name muse --scopes read,write    # 无删除权
+
+node scripts/generate-api-key.js <username> --list           # 列出所有 key（scopes/lastUsed/状态）
+node scripts/generate-api-key.js <username> --revoke <name>  # 按名吊销，立即生效
 ```
 
 ## 通用约定
@@ -45,6 +54,7 @@ node scripts/generate-api-key.js <username> --remove   # 吊销
 | receiveAmount | float? | 待收款金额 |
 | actualReceiveAmount | float? | 实收金额（填写即视为收款完成） |
 | notes | string? | 备忘录（消费原因、购买物件等） |
+| dedupeKey | string? | 幂等键（可选）。POST /api/bills 传入后，同一 dedupeKey 的重复提交返回已有账单 + `duplicated:true`，不再新建 —— Agent 重试/补发不会记双份 |
 | isRecurring | bool | 是否周期账单（克隆到下月的依据） |
 | recurringInterval | int | 周期（月），1=每月；>1 的不参与克隆 |
 | includeInStats | bool | 是否计入收支统计（信用卡刷卡笔记=false，还款时=true，避免重复计算） |

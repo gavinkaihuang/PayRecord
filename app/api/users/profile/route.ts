@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUser } from '@/lib/auth';
+import { getUser, requireWebUser } from '@/lib/auth';
 import { logAction } from '@/lib/logger';
 import bcrypt from 'bcryptjs';
 
 export async function GET() {
     try {
+        const guard = await requireWebUser();
+        if (guard) return guard;
         const user = await getUser();
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -35,6 +37,8 @@ export async function GET() {
 
 export async function PUT(request: Request) {
     try {
+        const guard = await requireWebUser();
+        if (guard) return guard;
         const sessionUser = await getUser();
         if (!sessionUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
