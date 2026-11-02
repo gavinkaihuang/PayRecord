@@ -118,10 +118,96 @@ check("muse clone -> 200", s == 200, f"{s} {d}")
 
 # --- 9. revocation semantics: revoke readonly via script is out of HTTP scope; verified by --list/--revoke E2E in shell ---
 
+# --- 10. GET /api/bills/due: overdue/soon flags, totals, filters, auth ---
+from datetime import datetime, timedelta, timezone
+SH = timezone(timedelta(hours=8))
+def sh_iso(offset_days):
+    return (datetime.now(SH) + timedelta(days=offset_days)).strftime('%Y-%m-%dT12:00:00+08:00')
+
+def mkdue(dk, offset, amount, **kw):
+    b = {'date': sh_iso(offset), 'payee': '京东', 'payAmount': amount, 'dedupeKey': dk}
+    b.update(kw)
+    return req('POST', '/api/bills', b, headers=MK)
+
+for dk, off, amt in [('e2e-due-over', -1, 100), ('e2e-due-today', 0, 50),
+                     ('e2e-due-soon', 2, 200), ('e2e-due-far', 5, 999)]:
+    s, d = mkdue(dk, off, amt)
+    check(f"seed due bill {dk} -> 200", s == 200, f"{s} {d}")
+s, d = mkdue('e2e-due-nostats', 1, 70, includeInStats=False)
+check("seed nostats bill -> 200", s == 200, f"{s} {d}")
+
+s, d = req('GET', '/api/bills/due', headers=MK)
+# local/test DBs carry other bills - assert only on the e2e-due-* subset
+bydk = {b.get('dedupeKey'): b for b in d.get('bills', [])
+        if str(b.get('dedupeKey', '')).startswith('e2e-due-')}
+subset_sum = sum(b.get('payAmount') or 0 for b in bydk.values())
+check("due default(3d) -> 200 with shape", s == 200 and 'totals' in d and 'asOf' in d, f"{s} {d}")
+check("due default(3d) excludes +5d bill", 'e2e-due-far' not in bydk, f"{list(bydk)}")
+check("due overdue flag & daysUntilDue=-1", bydk.get('e2e-due-over', {}).get('overdue') is True
+      and bydk.get('e2e-due-over', {}).get('daysUntilDue') == -1, f"{bydk.get('e2e-due-over')}")
+check("due today -> daysUntilDue=0", bydk.get('e2e-due-today', {}).get('daysUntilDue') == 0, f"{bydk.get('e2e-due-today')}")
+check("due subset totals (4 bills, 1 overdue, sum 420)", len(bydk) == 4
+      and sum(1 for b in bydk.values() if b['overdue']) == 1
+      and abs(subset_sum - 420) < 1e-9, f"n={len(bydk)} sum={subset_sum}")
+s, d = req('GET', '/api/bills/due?days=7', headers=MK)
+bydk = {b.get('dedupeKey'): b for b in d.get('bills', [])
+        if str(b.get('dedupeKey', '')).startswith('e2e-due-')}
+check("due days=7 includes +5d bill (daysUntilDue=5)", 'e2e-due-far' in bydk
+      and bydk['e2e-due-far']['daysUntilDue'] == 5, f"{list(bydk)}")
+s, d = req('GET', '/api/bills/due?days=0', headers=MK)
+bydk = {b.get('dedupeKey'): b for b in d.get('bills', [])
+        if str(b.get('dedupeKey', '')).startswith('e2e-due-')}
+check("due days=0 = overdue + today only", set(bydk) == {'e2e-due-over', 'e2e-due-today'}
+      and bydk['e2e-due-over']['overdue'] is True
+      and bydk['e2e-due-today']['overdue'] is False, f"{list(bydk)}")
+s, d = req('GET', '/api/bills/due?days=abc', headers=MK)
+bydk = {b.get('dedupeKey'): b for b in d.get('bills', [])
+        if str(b.get('dedupeKey', '')).startswith('e2e-due-')}
+check("due days=garbage falls back to 3", 'e2e-due-far' not in bydk and len(bydk) == 4, f"{list(bydk)}")
+s, d = req('GET', '/api/bills/due?includeInStats=true', headers=MK)
+bydk = {b.get('dedupeKey'): b for b in d.get('bills', [])
+        if str(b.get('dedupeKey', '')).startswith('e2e-due-')}
+check("due includeInStats=true excludes nostats bill", len(bydk) == 3
+      and 'e2e-due-nostats' not in bydk
+      and abs(sum(b.get('payAmount') or 0 for b in bydk.values()) - 350) < 1e-9, f"{list(bydk)}")
+s, d = req('GET', '/api/bills/due', headers=RK)
+check("readonly key GET due -> 200 (read scope)", s == 200, f"{s}")
+s, d = req('GET', '/api/bills/due', headers={'X-API-Key': 'prk_wrong'})
+check("bad key GET due -> 401", s == 401, f"{s}")
+s, d = req('GET', '/api/bills/due')
+check("no auth GET due -> 401", s == 401, f"{s}")
+# paying a bill removes it from due
+s, d = req('GET', '/api/bills/due', headers=MK)
+soon_id = next((b['id'] for b in d['bills'] if b.get('dedupeKey') == 'e2e-due-soon'), None)
+s, d = req('PUT', f'/api/bills/{soon_id}', {'isPaid': True, 'paidDate': sh_iso(0)}, headers=MK)
+check("mark due bill paid -> 200", s == 200, f"{s} {d}")
+s, d = req('GET', '/api/bills/due?includeInStats=true', headers=MK)
+check("paid bill leaves due list", all(b.get('dedupeKey') != 'e2e-due-soon' for b in d.get('bills', [])), f"{[b.get('dedupeKey') for b in d.get('bills', [])]}")
+
+# --- 11. profile telegramToken masking (T4) ---
+s, d = req('PUT', '/api/users/profile', {'telegramToken': '123456789:AAHfake-token-for-e2e'}, headers=JWT)
+check("profile PUT set token -> 200", s == 200, f"{s} {d}")
+s, d = req('GET', '/api/users/profile', headers=JWT)
+tok = d.get('telegramToken')
+check("profile GET returns masked token", isinstance(tok, str) and '…' in tok
+      and 'AAHfake' not in tok, f"{tok}")
+s, d = req('PUT', '/api/users/profile', {'telegramToken': tok}, headers=JWT)  # echo the mask back
+s2, d2 = req('GET', '/api/users/profile', headers=JWT)
+check("masked echo does not overwrite stored token", d2.get('telegramToken') == tok, f"{d2.get('telegramToken')}")
+s, d = req('PUT', '/api/users/profile', {'telegramToken': None}, headers=JWT)
+s3, d3 = req('GET', '/api/users/profile', headers=JWT)
+check("clearing token works (reads null after)", s == 200 and d3.get('telegramToken') is None, f"{s} {d3.get('telegramToken')}")
+
 # cleanup test bills via hermes (delete scope)
 s, d = req('GET', '/api/bills?year=2026&month=10', headers=HK)
 for b in d:
-    if b.get('payee') in ('全量键测试', '网页写入') or b.get('dedupeKey', '').startswith('e2e-dedupe'):
+    if b.get('payee') in ('全量键测试', '网页写入') or str(b.get('dedupeKey', '')).startswith('e2e-'):
+        req('DELETE', f"/api/bills/{b['id']}", headers=HK)
+# due-seeded bills may fall in the current month, not 2026-10
+from datetime import datetime as _dt
+s, d = req('GET', f"/api/bills?year={_dt.now(SH).year}&month={_dt.now(SH).month}", headers=HK)
+for b in d:
+    if str(b.get('dedupeKey', '')).startswith('e2e-'):
         req('DELETE', f"/api/bills/{b['id']}", headers=HK)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")

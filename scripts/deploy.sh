@@ -5,14 +5,13 @@
 #   ./scripts/deploy.sh status   # pm2 状态 + 最近日志
 #   ./scripts/deploy.sh backup   # 冷备 dev.db + .env 到 backups/(不停服务)
 #   ./scripts/deploy.sh start    # pm2 start(若已停止)
-#   ./scripts/deploy.sh start    # pm2 start(若已停止)
 #   ./scripts/deploy.sh restart  # pm2 restart --update-env
 #   ./scripts/deploy.sh upgrade  # 备份->fetch->checkout REF->install->db push->build->restart->冒烟(全自动,升级前自动备份)
 #   ./scripts/deploy.sh rollback # 回滚到 backups/ 里最近一次代码回滚点(不动数据库)
 #   ./scripts/deploy.sh genkey <username>  # 生成/轮换 API key(明文只显示一次)
 #
 # 可调参数(环境变量覆盖):
-#   PR_REF       要部署的分支/commit,默认 feat/api-key-auth
+#   PR_REF       要部署的分支/commit,默认 main
 #   PR_PM2_NAME  pm2 进程名,默认 payrecord
 #   PR_BACKUP_DIR 备份目录,默认 <repo>/backups
 #   PR_REPO_ROOT 目标项目目录(脚本不在项目内时用),默认脚本自身所在仓库
@@ -21,7 +20,7 @@
 set -euo pipefail
 
 # ---------- 配置 ----------
-PR_REF="${PR_REF:-feat/api-key-auth}"
+PR_REF="${PR_REF:-main}"
 PR_PM2_NAME="${PR_PM2_NAME:-payrecord}"
 REPO_ROOT="${PR_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 PR_BACKUP_DIR="${PR_BACKUP_DIR:-$REPO_ROOT/backups}"

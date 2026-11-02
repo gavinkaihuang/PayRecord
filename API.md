@@ -106,57 +106,80 @@ curl -X PUT http://host:8082/api/bills/<id> -H "X-API-Key: $KEY" -H 'Content-Typ
 
 按月批量删除（危险操作）。year、month 必填。返回 `{deletedCount}`。
 
-### 7. POST /api/bills/clone
+### 7. GET /api/bills/due?days=N&includeInStats=true|false
+
+逾期与 N 天内到期的**未付**（isPaid=false）账单，供还款提醒 / Agent 每日巡检。时区固定上海日历（与服务器时区无关）。
+
+- `days`：提前天数，默认 3，范围 0~90（0=逾期+今天到期），非法值回落默认。
+- `includeInStats`：可选过滤；`true` = 只返回计入统计的账单（信用卡还款类备忘 exclude），缺省 = 不过滤。
+- 每笔附 `daysUntilDue`（整日数，负数=逾期天数）与 `overdue` 布尔；顶层带 `asOf`（计算基准日）与 `totals`（count/overdueCount/dueSoonCount/payAmount/receiveAmount 合计）。
+- 需要 `read` scope。
+
+```bash
+curl -H "X-API-Key: $KEY" 'http://host:8082/api/bills/due?days=3&includeInStats=true'
+```
+
+```json
+{
+  "days": 3, "asOf": "2026-11-02",
+  "bills": [
+    {"id": "…", "date": "2026-11-01", "payee": "招商银行", "payAmount": 1200, "daysUntilDue": -1, "overdue": true, …}
+  ],
+  "totals": {"count": 1, "overdueCount": 1, "dueSoonCount": 0, "payAmount": 1200, "receiveAmount": 0}
+}
+```
+
+### 8. POST /api/bills/clone
 
 把指定月 `isRecurring=true` 且 `recurringInterval=1` 的账单克隆到下月。请求体 `{year, month}`（源月）。
 
 克隆规则：金额字段（payAmount/receiveAmount）重置为 null；isPaid/paidDate/actualReceiveAmount 重置；目标月已存在同 payee+payer 的**未编辑**条目则先删后建，**已编辑**（已付或已填实收）的跳过不覆盖。返回 `{clonedCount, deletedCount, skippedCount}`。
 
-### 8. GET /api/merchants
+### 9. GET /api/merchants
 
 商户列表 = 全部已配置商户（全局）∪ 当前用户账单中出现过的 payee/payer。返回 `[{name, icon}]`，按名称排序。调用方应以此列表中的名称为标准商户名（新账单的 payee 从这里取，保证克隆去重可靠）。
 
-### 9. POST /api/merchants
+### 10. POST /api/merchants
 
 新增/更新商户（全局生效）。请求体 `{name, icon}`（icon 为上传接口返回的 URL）。upsert 语义。
 
-### 10. DELETE /api/merchants?name=xxx
+### 11. DELETE /api/merchants?name=xxx
 
 删除商户配置（图标重置）。商户仅存在于配置表时才可删，账单文本不受影响。
 
-### 11. GET /api/logs
+### 12. GET /api/logs
 
 当前用户最近 100 条操作日志 `{id, action, details, ip, createdAt}`。action 枚举：LOGIN / CREATE_BILL / UPDATE_BILL / DELETE_BILL / BULK_DELETE_BILLS / CLONE_BILLS / UPDATE_MERCHANT_ICON / DELETE_MERCHANT / UPDATE_PROFILE。
 
-### 12. GET /api/users
+### 13. GET /api/users
 
 全部用户列表 `{id, username, createdAt}`（不含密码等敏感字段）。
 
-### 13. POST /api/users
+### 14. POST /api/users
 
 创建用户 `{username, password}`。用户名重复返回 400。
 
-### 14. GET /api/users/profile
+### 15. GET /api/users/profile
 
-当前用户资料 `{id, username, nickname, telegramToken, telegramChatId}`。
+当前用户资料 `{id, username, nickname, telegramToken, telegramChatId}`。`telegramToken` **脱敏返回**（如 `1234…cdef`，短值整体打码）——原始 bot token 不再下发浏览器。
 
-### 15. PUT /api/users/profile
+### 16. PUT /api/users/profile
 
-更新资料 `{nickname?, password?, telegramToken?, telegramChatId?}`。
+更新资料 `{nickname?, password?, telegramToken?, telegramChatId?}`。`telegramToken` 传回 GET 拿到的**脱敏串视为"不修改"**；传新值=更换，传空串=清除。响应中的 token 同样脱敏。
 
-### 16. POST /api/telegram/test
+### 17. POST /api/telegram/test
 
-发送 Telegram 测试消息 `{token, chatId}`（token 为 Bot token）。
+发送 Telegram 测试消息 `{token, chatId}`。token 传脱敏串或空时自动改用已保存的 token（设置页"测试"按钮无需见到明文）。
 
-### 17. POST /api/upload
+### 18. POST /api/upload
 
 上传文件（multipart/form-data，字段名 `file`），存到 `public/uploads/icons/`。返回 `{url}`，该 url 用作 merchants 的 icon。
 
-### 18. GET /api/calendar/{userId} （无鉴权）
+### 19. GET /api/calendar/{userId} （无鉴权）
 
 ICS 日历订阅，当月起全部账单。**无认证**（日历客户端不便带凭证，userId 本身即秘密）——因此 userId 不要外传；如泄漏可在数据库层面更换（uuid 变更后旧链接失效）。
 
-### 19. GET /api/uploads/icons/{filename} （无鉴权）
+### 20. GET /api/uploads/icons/{filename} （无鉴权）
 
 静态图标文件。仅存放商户图标，不含敏感数据。
 
