@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUser } from '@/lib/auth';
+import { getUser, requireWebUser } from '@/lib/auth';
 import { logAction } from '@/lib/logger';
+import { isMaskedSecret, maskSecret } from '@/lib/mask';
 import bcrypt from 'bcryptjs';
 
 export async function GET() {
     try {
+        const guard = await requireWebUser();
+        if (guard) return guard;
         const user = await getUser();
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,7 +29,12 @@ export async function GET() {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        return NextResponse.json(userData);
+        // Never hand the raw bot token to the browser - a masked echo is
+        // enough for the settings UI, and PUT treats the mask as "unchanged".
+        return NextResponse.json({
+            ...userData,
+            telegramToken: maskSecret(userData.telegramToken),
+        });
     } catch (error) {
         console.error('Error fetching profile:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -35,6 +43,8 @@ export async function GET() {
 
 export async function PUT(request: Request) {
     try {
+        const guard = await requireWebUser();
+        if (guard) return guard;
         const sessionUser = await getUser();
         if (!sessionUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -52,10 +62,18 @@ export async function PUT(request: Request) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
+        // Masked echo from the settings form means "leave the token alone";
+        // any other value (including '' to clear) is a real change.
+        const telegramTokenChanged =
+            telegramToken !== undefined && !isMaskedSecret(telegramToken) &&
+            telegramToken !== currentUser.telegramToken;
+
         const updateData: any = {
-            telegramToken,
             telegramChatId
         };
+        if (telegramToken !== undefined && !isMaskedSecret(telegramToken)) {
+            updateData.telegramToken = telegramToken;
+        }
 
         let actions = [];
 
@@ -70,7 +88,7 @@ export async function PUT(request: Request) {
             actions.push('UPDATE_PASSWORD');
         }
 
-        if (telegramToken && telegramToken !== currentUser.telegramToken) {
+        if (telegramTokenChanged) {
             actions.push('UPDATE_TELEGRAM');
         }
 
@@ -95,7 +113,7 @@ export async function PUT(request: Request) {
         return NextResponse.json({
             username: updatedUser.username,
             nickname: updatedUser.nickname,
-            telegramToken: updatedUser.telegramToken,
+            telegramToken: maskSecret(updatedUser.telegramToken),
             telegramChatId: updatedUser.telegramChatId
         });
 

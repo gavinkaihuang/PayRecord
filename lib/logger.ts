@@ -4,7 +4,8 @@ export async function logAction(
     userId: string,
     action: string,
     details?: string | null,
-    ip?: string | null
+    ip?: string | null,
+    actor?: string | null
 ) {
     try {
         await prisma.log.create({
@@ -12,7 +13,8 @@ export async function logAction(
                 userId,
                 action,
                 details,
-                ip
+                ip,
+                actor
             }
         });
     } catch (e) {

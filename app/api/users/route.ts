@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { hashPassword, getAuthUser } from '@/lib/auth';
+import { hashPassword, getAuthUser, requireWebUser } from '@/lib/auth';
 
 
 // Get all users
 export async function GET(request: Request) {
+    const guard = await requireWebUser();
+    if (guard) return guard;
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -20,6 +22,8 @@ export async function GET(request: Request) {
 
 // Create new user
 export async function POST(request: Request) {
+    const guard = await requireWebUser();
+    if (guard) return guard;
     const currentUser = await getAuthUser();
     if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

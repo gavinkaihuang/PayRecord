@@ -460,13 +460,14 @@ export default function SettingsPage() {
                                             <th className="py-3 px-2 font-medium">Time</th>
                                             <th className="py-3 px-2 font-medium">Action</th>
                                             <th className="py-3 px-2 font-medium">Details</th>
+                                            <th className="py-3 px-2 font-medium">Actor</th>
                                             <th className="py-3 px-2 font-medium">IP</th>
                                         </tr>
                                     </thead>
                                     <tbody className="text-sm">
                                         {logs.length === 0 ? (
                                             <tr>
-                                                <td colSpan={4} className="py-8 text-center text-white/30">
+                                                <td colSpan={5} className="py-8 text-center text-white/30">
                                                     No activity logs found.
                                                 </td>
                                             </tr>
@@ -479,6 +480,9 @@ export default function SettingsPage() {
                                                     <td className="py-3 px-2 text-indigo-300 font-medium">{log.action}</td>
                                                     <td className="py-3 px-2 text-white/60 truncate max-w-xs" title={log.details}>
                                                         {log.details || '-'}
+                                                    </td>
+                                                    <td className="py-3 px-2 text-cyan-300/80 font-mono text-xs whitespace-nowrap">
+                                                        {log.actor || '-'}
                                                     </td>
                                                     <td className="py-3 px-2 text-white/40 font-mono text-xs">
                                                         {log.ip || '-'}
