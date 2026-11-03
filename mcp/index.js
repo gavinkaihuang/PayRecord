@@ -60,17 +60,25 @@ function fmtAmount(n) {
 function trunc(s, n) {
     return s == null ? '' : String(s).length > n ? String(s).slice(0, n) + '…' : String(s);
 }
+// ISO timestamp (UTC "Z" or any offset) -> Asia/Shanghai calendar day.
+// Slicing the raw string shows the previous day for UTC-stored +08:00 dates.
+function shDay(s) {
+    if (!s) return '';
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? String(s).slice(0, 10) : shDateString(d);
+}
+
 function billLine(b) {
     const who = b.payee || b.payer || '未知';
     const amount = b.payAmount != null ? fmtAmount(b.payAmount)
         : b.receiveAmount != null ? `收 ${fmtAmount(b.receiveAmount)}`
             : '未填';
-    const state = b.isPaid ? `✅已付(${(b.paidDate || '').slice(0, 10)})`
+    const state = b.isPaid ? `✅已付(${shDay(b.paidDate)})`
         : b.overdue === undefined ? (b.isPaid ? '' : '未付')
             : b.overdue ? `🔴逾期${-b.daysUntilDue}天`
                 : b.daysUntilDue === 0 ? '⏰今天' : `${b.daysUntilDue}天后`;
     const notes = b.notes ? `  # ${trunc(b.notes, 40)}` : '';
-    return `- [${b.id}] ${(b.date || '').slice(0, 10)} ${who} ${amount} ${state}${notes}`;
+    return `- [${b.id}] ${shDay(b.date)} ${who} ${amount} ${state}${notes}`;
 }
 
 // ---------- tools ----------
@@ -166,10 +174,19 @@ const TOOLS = [
             required: ['billId'],
         },
         async run(args) {
-            const bill = await api('PUT', `/api/bills/${args.billId}`, {
-                isPaid: true,
-                paidDate: args.paidDate ?? new Date().toISOString(),
-            });
+            let bill;
+            try {
+                bill = await api('PUT', `/api/bills/${encodeURIComponent(args.billId)}`, {
+                    isPaid: true,
+                    paidDate: args.paidDate ?? new Date().toISOString(),
+                });
+            } catch (e) {
+                // The API answers 500 for an unknown id; make that readable.
+                if (String(e.message).startsWith('HTTP 500')) {
+                    throw new Error(`标记失败：账单 ${args.billId} 可能不存在或已被删除（可先用 list_due_bills / list_bills 确认 id）。原始错误: ${e.message}`);
+                }
+                throw e;
+            }
             return `已标记支付\n${billLine(bill)}`;
         },
     },
@@ -229,7 +246,10 @@ async function handle(msg) {
             return;
         }
         try {
-            const text = await tool.run(params.arguments || {});
+            const args = params.arguments || {};
+            const missing = (tool.inputSchema?.required || []).filter(k => args[k] == null || args[k] === '');
+            if (missing.length) throw new Error(`缺少必填参数: ${missing.join(', ')}`);
+            const text = await tool.run(args);
             ok(id, { content: [{ type: 'text', text }], isError: false });
         } catch (e) {
             // Tool execution failure: report inside the result so the client

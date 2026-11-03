@@ -94,11 +94,17 @@ s, d = req('GET', '/api/logs', headers=AK)
 acts = [l['action'] for l in d]
 check("logs record API-key actions", s == 200 and 'UPDATE_BILL' in acts and 'CLONE_BILLS' in acts, f"{acts[:6]}")
 s, d = req('GET', '/api/users', headers=AK)
-check("users GET", s == 200 and isinstance(d, list), f"{s}")
+# /api/users is web-only since multi-key: API keys must be refused (403)
+check("users GET with API key -> 403 (web-only)", s == 403, f"{s}")
 
 # calendar (no auth by design)
-s, d = req('GET', f'/api/calendar/6b3aab08-fa6d-4e77-a09f-cf6a7c57a5a6', raw=True)
-check("calendar ICS (unauthenticated, by design)", s == 200 and 'BEGIN:VCALENDAR' in d, f"{s}")
+# needs a real user id: PRK_USER_ID=<id> (skipped when unset)
+import os
+if os.environ.get('PRK_USER_ID'):
+    s, d = req('GET', f"/api/calendar/{os.environ['PRK_USER_ID']}", raw=True)
+    check("calendar ICS (unauthenticated, by design)", s == 200 and 'BEGIN:VCALENDAR' in d, f"{s}")
+else:
+    print("SKIP calendar ICS (set PRK_USER_ID)")
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 if failed:
