@@ -29,17 +29,24 @@ node scripts/generate-api-key.js <username> --revoke muse   # 泄漏秒吊销
 ## 记账口径（重要）
 
 - **金额 0 是合法值**；`null`/缺省才是"未填"。出账单前金额未知，先建空金额条目。
+- **待付（Out）与待收（In）**：
+  - 待付款（信用卡、房贷等）：看 `isPaid`，销账用 `mark_paid`。
+  - 待收款（房租、报销等）：看 `actualReceiveAmount`，收到打款用 `mark_received` 登记实收。
 - **dedupeKey 幂等**：agent 自动记账必带唯一 dedupeKey，重试/补发不会记双份，响应含 `duplicated:true` 表示命中已有账单。
 - **includeInStats**：信用卡还款类备忘账单设 `false`（避免与消费重复统计）；真实收支 `true`（默认）。
-- **周期账单**：月初 clone 生成（`isRecurring=true`），出账单后回填金额，还款后 `mark_paid`。
+- **周期账单**：每月 1 号自动滚存（或调用 `clone_bills`），支持 3 个月一期的季度房租（`recurringInterval=3`）自动在对应月份生成。
 - **payee 拼写**：`add_bill` 会对照商户列表校验，拼错会报错并列出可选项（防图标与统计口径漂移）。
 
 ## 每日提醒提示词（建议）
 
 给常驻 agent 的定时任务提示词参考：
 
-> 每天早上调用 `list_due_bills(days=3)`。有逾期（🔴）立即提醒我还款；临近到期的汇总成一条消息报给我；
-> 金额未填的条目提醒我确认。若我说"已还 XX"，用 `mark_paid` 标记对应账单（先 `list_due_bills` 找到 id）。
+> 每天早上调用 `list_due_bills(days=3)`。
+> - 有还款逾期（🔴）立即提醒我还款；临近到期的汇总告知；
+> - 有房租等待收款（🟢）临近或逾期，提醒我向租客确认；
+> - 金额未填的条目提醒我确认。
+> - 若我说"已还 XX"，用 `mark_paid` 标记对应还款账单；
+> - 若我说"收到 XX 房租"，用 `mark_received` 登记实收金额。
 
 Telegram cron（`scripts/cron-telegram-notify.js`）是同一逻辑的兜底通道：agent 不在线时每天仍会推一条汇总。
 

@@ -69,14 +69,21 @@ function shDay(s) {
 }
 
 function billLine(b) {
-    const who = b.payee || b.payer || '未知';
-    const amount = b.payAmount != null ? fmtAmount(b.payAmount)
-        : b.receiveAmount != null ? `收 ${fmtAmount(b.receiveAmount)}`
-            : '未填';
-    const state = b.isPaid ? `✅已付(${shDay(b.paidDate)})`
-        : b.overdue === undefined ? (b.isPaid ? '' : '未付')
-            : b.overdue ? `🔴逾期${-b.daysUntilDue}天`
-                : b.daysUntilDue === 0 ? '⏰今天' : `${b.daysUntilDue}天后`;
+    const isReceive = Boolean(b.payer || b.kind === 'receive');
+    const who = isReceive ? `[收] ${b.payer || '待收方'}` : (b.payee || b.payer || '未知');
+    const amount = isReceive
+        ? (b.actualReceiveAmount != null ? `实收 ${fmtAmount(b.actualReceiveAmount)}` : (b.receiveAmount != null ? `待收 ${fmtAmount(b.receiveAmount)}` : '待收未填'))
+        : (b.payAmount != null ? fmtAmount(b.payAmount) : '未填');
+
+    const state = isReceive
+        ? (b.actualReceiveAmount !== null && b.actualReceiveAmount !== undefined
+            ? `✅已收`
+            : (b.overdue === undefined ? '待收' : (b.overdue ? `🔴待收逾期${-b.daysUntilDue}天` : (b.daysUntilDue === 0 ? '⏰今天应收' : `${b.daysUntilDue}天后应收`))))
+        : (b.isPaid
+            ? `✅已付(${shDay(b.paidDate)})`
+            : (b.overdue === undefined ? (b.isPaid ? '' : '未付')
+                : (b.overdue ? `🔴逾期${-b.daysUntilDue}天` : (b.daysUntilDue === 0 ? '⏰今天' : `${b.daysUntilDue}天后`))));
+
     const notes = b.notes ? `  # ${trunc(b.notes, 40)}` : '';
     return `- [${b.id}] ${shDay(b.date)} ${who} ${amount} ${state}${notes}`;
 }
@@ -85,7 +92,7 @@ function billLine(b) {
 const TOOLS = [
     {
         name: 'list_due_bills',
-        description: '列出逾期和 N 天内到期的未付账单（含每笔 daysUntilDue/overdue 与合计）。用于每日还款提醒。',
+        description: '列出逾期和 N 天内到期的未付与未收账单（含待付/待收分类、daysUntilDue/overdue 与各自合计）。用于每日账单提醒。',
         inputSchema: {
             type: 'object',
             properties: {
@@ -97,11 +104,28 @@ const TOOLS = [
             const params = new URLSearchParams({ days: String(args.days ?? 3) });
             if (args.includeInStats !== undefined) params.set('includeInStats', String(args.includeInStats));
             const d = await api('GET', `/api/bills/due?${params}`);
-            const head = `截至 ${d.asOf}（未来 ${d.days} 天窗口）：逾期 ${d.totals.overdueCount} 笔、临近 ${d.totals.dueSoonCount} 笔；待付合计 ${fmtAmount(d.totals.payAmount)}` +
-                (d.totals.receiveAmount > 0 ? `、待收合计 ${fmtAmount(d.totals.receiveAmount)}` : '');
-            return d.bills.length
-                ? `${head}\n${d.bills.map(billLine).join('\n')}`
-                : `${head}\n（无到期账单）`;
+
+            const payList = d.payBills || d.bills.filter(b => !b.payer);
+            const receiveList = d.receiveBills || d.bills.filter(b => Boolean(b.payer));
+
+            let head = `截至 ${d.asOf}（未来 ${d.days} 天窗口）：\n` +
+                `• 待付：逾期 ${d.totals.payOverdueCount ?? d.totals.overdueCount} 笔，共 ${payList.length} 笔，待付合计 ${fmtAmount(d.totals.payAmount)}`;
+            if (receiveList.length > 0 || (d.totals.receiveAmount && d.totals.receiveAmount > 0)) {
+                head += `\n• 待收：逾期 ${d.totals.receiveOverdueCount ?? 0} 笔，共 ${receiveList.length} 笔，待收合计 ${fmtAmount(d.totals.receiveAmount)}`;
+            }
+
+            if (!d.bills.length) {
+                return `${head}\n（无到期账单）`;
+            }
+
+            let body = '';
+            if (payList.length > 0) {
+                body += `\n\n【待付款项】\n${payList.map(billLine).join('\n')}`;
+            }
+            if (receiveList.length > 0) {
+                body += `\n\n【待收款项】\n${receiveList.map(billLine).join('\n')}`;
+            }
+            return `${head}${body}`.trim();
         },
     },
     {
@@ -188,6 +212,54 @@ const TOOLS = [
                 throw e;
             }
             return `已标记支付\n${billLine(bill)}`;
+        },
+    },
+    {
+        name: 'mark_received',
+        description: '把一笔收款账单标记为已收款（如收到租客打款的房租），回填 actualReceiveAmount（实收金额）。',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                billId: { type: 'string', description: '账单 id（list_due_bills / list_bills 可查）' },
+                actualReceiveAmount: { type: 'number', description: '实收金额。若不传，可留空或由用户指定' },
+                notes: { type: 'string', description: '可选：追加或更新备忘说明' },
+            },
+            required: ['billId'],
+        },
+        async run(args) {
+            let bill;
+            try {
+                bill = await api('PUT', `/api/bills/${encodeURIComponent(args.billId)}`, {
+                    actualReceiveAmount: args.actualReceiveAmount !== undefined ? args.actualReceiveAmount : undefined,
+                    notes: args.notes,
+                });
+            } catch (e) {
+                if (String(e.message).startsWith('HTTP 500')) {
+                    throw new Error(`标记收款失败：账单 ${args.billId} 可能不存在或已被删除。原始错误: ${e.message}`);
+                }
+                throw e;
+            }
+            return `已标记收款\n${billLine(bill)}`;
+        },
+    },
+    {
+        name: 'clone_bills',
+        description: '克隆周期性账单到目标月份（自动包含每月常规还款，以及当前月份命中的季度/多月周期房租）。',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                sourceYear: { type: 'integer', description: '源年份（默认当前年）' },
+                sourceMonth: { type: 'integer', description: '源月份（1-12，默认当前月）' },
+            },
+        },
+        async run(args) {
+            const [y, m] = shDateString(new Date()).split('-');
+            const year = args.sourceYear ?? Number(y);
+            const month = args.sourceMonth ?? Number(m);
+            const res = await api('POST', '/api/bills/clone', { year, month });
+            const nextMonth = month === 12 ? 1 : month + 1;
+            const nextYear = month === 12 ? year + 1 : year;
+            return `已完成从 ${year}-${month} 到 ${nextYear}-${nextMonth} 的周期账单滚存：新建 ${res.clonedCount} 笔、覆盖更新 ${res.deletedCount} 笔、跳过已结 ${res.skippedCount} 笔。`;
         },
     },
     {
