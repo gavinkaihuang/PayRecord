@@ -184,6 +184,44 @@ check("mark due bill paid -> 200", s == 200, f"{s} {d}")
 s, d = req('GET', '/api/bills/due?includeInStats=true', headers=MK)
 check("paid bill leaves due list", all(b.get('dedupeKey') != 'e2e-due-soon' for b in d.get('bills', [])), f"{[b.get('dedupeKey') for b in d.get('bills', [])]}")
 
+# --- 10b. receive bills in due list & actualReceiveAmount settlement ---
+s, d = req('POST', '/api/bills', {
+    'date': sh_iso(1), 'payer': '新芦苑租客', 'receiveAmount': 5500,
+    'notes': '季度房租', 'dedupeKey': 'e2e-recv-rent', 'isRecurring': True, 'recurringInterval': 3
+}, headers=MK)
+check("seed due receive bill (rent) -> 200", s == 200, f"{s} {d}")
+s, d = req('GET', '/api/bills/due', headers=MK)
+recv_items = [b for b in d.get('receiveBills', []) if b.get('dedupeKey') == 'e2e-recv-rent']
+check("due returns receiveBills group", len(recv_items) == 1 and recv_items[0]['receiveAmount'] == 5500, f"{d.get('totals')}")
+rent_id = recv_items[0]['id'] if recv_items else None
+if rent_id:
+    s, d = req('PUT', f'/api/bills/{rent_id}', {'actualReceiveAmount': 5500}, headers=MK)
+    check("settle receive bill (actualReceiveAmount) -> 200", s == 200, f"{s} {d}")
+s, d = req('GET', '/api/bills/due', headers=MK)
+check("received rent leaves due list", all(b.get('dedupeKey') != 'e2e-recv-rent' for b in d.get('receiveBills', [])), f"{[b.get('dedupeKey') for b in d.get('receiveBills', [])]}")
+
+# --- 10c. quarterly clone verification ---
+# Seed a bill in month M-3 with recurringInterval=3
+from datetime import datetime as _dt
+now_dt = _dt.now(SH)
+m3_year = now_dt.year if now_dt.month > 3 else now_dt.year - 1
+m3_month = now_dt.month - 3 if now_dt.month > 3 else now_dt.month + 9
+m3_date = f"{m3_year}-{m3_month:02d}-15T10:00:00+08:00"
+s, d = req('POST', '/api/bills', {
+    'date': m3_date, 'payer': '绿地海怡租客', 'receiveAmount': 6000,
+    'notes': '季度克隆测试', 'dedupeKey': 'e2e-q-clone-seed', 'isRecurring': True, 'recurringInterval': 3
+}, headers=MK)
+check("seed quarterly recurring bill (M-3) -> 200", s == 200, f"{s} {d}")
+# Clone from prev month to current month
+prev_y = now_dt.year if now_dt.month > 1 else now_dt.year - 1
+prev_m = now_dt.month - 1 if now_dt.month > 1 else 12
+s, d = req('POST', '/api/bills/clone', {'year': prev_y, 'month': prev_m}, headers=MK)
+check("clone from prev month to current -> 200", s == 200, f"{s} {d}")
+# Verify quarterly rent bill was cloned into current month
+s, d = req('GET', f"/api/bills?year={now_dt.year}&month={now_dt.month}", headers=MK)
+q_cloned = [b for b in d if b.get('payer') == '绿地海怡租客']
+check("quarterly bill cloned into current month", len(q_cloned) >= 1 and q_cloned[0]['recurringInterval'] == 3, f"{q_cloned}")
+
 # --- 11. profile telegramToken masking (T4) ---
 s, d = req('PUT', '/api/users/profile', {'telegramToken': '123456789:AAHfake-token-for-e2e'}, headers=JWT)
 check("profile PUT set token -> 200", s == 200, f"{s} {d}")
@@ -207,7 +245,7 @@ for b in d:
 from datetime import datetime as _dt
 s, d = req('GET', f"/api/bills?year={_dt.now(SH).year}&month={_dt.now(SH).month}", headers=HK)
 for b in d:
-    if str(b.get('dedupeKey', '')).startswith('e2e-'):
+    if str(b.get('dedupeKey', '')).startswith('e2e-') or b.get('payer') in ('绿地海怡租客', '新芦苑租客'):
         req('DELETE', f"/api/bills/{b['id']}", headers=HK)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")

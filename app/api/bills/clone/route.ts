@@ -17,26 +17,45 @@ export async function POST(request: Request) {
 
     try {
         const userId = user!.userId as string;
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0, 23, 59, 59);
-
-        // Fetch source bills
-        const sourceBills = await prisma.bill.findMany({
-            where: {
-                userId,
-                date: { gte: startDate, lte: endDate }
-            }
-        });
 
         // Determine target range (Next Month)
-        // We need to fetch ALL bills in target month to check for existence
         // Date logic: Source is Y-M. Target is Y'-M'.
-        // We assume target is exactly +1 month.
         const targetYear = month === 12 ? year + 1 : year;
         const targetMonth = month === 12 ? 1 : month + 1;
 
         const targetStartDate = new Date(targetYear, targetMonth - 1, 1);
         const targetEndDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+
+        // Fetch candidate recurring bills from the past 12 months up to the target start
+        const pastWindowStart = new Date(targetYear, targetMonth - 1 - 12, 1);
+        const pastRecurringBills = await prisma.bill.findMany({
+            where: {
+                userId,
+                isRecurring: true,
+                date: { gte: pastWindowStart, lt: targetStartDate }
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        // Group past recurring bills by merchant key (payee or payer), keeping the most recent one
+        const candidateBills: typeof pastRecurringBills = [];
+        const seenKeys = new Set<string>();
+
+        for (const bill of pastRecurringBills) {
+            const key = bill.payee ? `payee:${bill.payee}` : bill.payer ? `payer:${bill.payer}` : `id:${bill.id}`;
+            if (seenKeys.has(key)) continue;
+            seenKeys.add(key);
+
+            const billYear = bill.date.getFullYear();
+            const billMonth = bill.date.getMonth() + 1;
+            const diffMonths = (targetYear - billYear) * 12 + (targetMonth - billMonth);
+            const interval = bill.recurringInterval && bill.recurringInterval > 0 ? bill.recurringInterval : 1;
+
+            // Only clone if the month difference matches its recurring interval
+            if (diffMonths === interval) {
+                candidateBills.push(bill);
+            }
+        }
 
         const targetBills = await prisma.bill.findMany({
             where: {
@@ -49,39 +68,27 @@ export async function POST(request: Request) {
         const billsToCreate: any[] = [];
         let skippedCount = 0;
 
-        console.log(`Cloning from ${year}-${month}. Found ${sourceBills.length} source bills.`);
+        console.log(`Cloning to ${targetYear}-${targetMonth}. Found ${candidateBills.length} matched recurring bills.`);
 
-        for (const bill of sourceBills) {
-            // Only clone recurring bills
-            if (!bill.isRecurring) continue;
+        for (const bill of candidateBills) {
+            // Keep day of month, clamped to the target month's maximum days
+            const targetMaxDay = new Date(targetYear, targetMonth, 0).getDate();
+            const targetDay = Math.min(bill.date.getDate(), targetMaxDay);
+            const targetDate = new Date(
+                targetYear,
+                targetMonth - 1,
+                targetDay,
+                bill.date.getHours(),
+                bill.date.getMinutes(),
+                bill.date.getSeconds()
+            );
 
-            // Skip bills with custom intervals (client-side logic handles fetching these)
-            if (bill.recurringInterval && bill.recurringInterval > 1) continue;
-
-            console.log('Processing Source Bill:', {
-                id: bill.id,
-                payee: bill.payee,
-                payAmount: bill.payAmount,
-                isRecurring: bill.isRecurring
-            });
-
-            // Calculate target date for this specific bill
-            let targetDate = new Date(bill.date);
-            targetDate.setMonth(targetDate.getMonth() + 1);
-
-            // Match Logic: Same Payee OR Same Payer
-            // (Bills usually have either payee or payer. If both, match both.)
-            // We look for a bill in target month with same payee/payer.
+            // Match Logic: Same Payee OR Same Payer in target month
             const existingBill = targetBills.find(b => {
-                const samePayee = bill.payee ? b.payee === bill.payee : true; // If source has payee, target must match.
-                const samePayer = bill.payer ? b.payer === bill.payer : true;
-                // Ensure at least one matches and neither mismatches if present
-                // Simplify: just check equality of fields
                 return b.payee === bill.payee && b.payer === bill.payer;
             });
 
             if (existingBill) {
-                // Check if edited
                 // Edited = Paid OR Received Amount set
                 const isEdited = existingBill.isPaid || existingBill.actualReceiveAmount !== null;
 
@@ -89,37 +96,29 @@ export async function POST(request: Request) {
                     skippedCount++;
                     continue;
                 } else {
-                    // Exists but not edited -> Delete old, add new
                     if (!billsToDelete.includes(existingBill.id)) {
                         billsToDelete.push(existingBill.id);
                     }
-                    // Proceed to add to create list
                 }
             }
 
-            // Prepare new bill data
-            // Prepare new bill data
-            const commonData = {
+            // Prepare new bill data with recurringInterval preserved
+            const billData = {
                 userId,
                 date: targetDate,
                 payee: bill.payee,
+                payAmount: null,
                 payer: bill.payer,
-                receiveAmount: null, // User requested not to clone amount
+                receiveAmount: null,
                 notes: bill.notes,
                 isRecurring: bill.isRecurring,
+                recurringInterval: bill.recurringInterval || 1,
                 includeInStats: bill.includeInStats,
-                // Reset status fields
                 isPaid: false,
                 paidDate: null,
                 actualReceiveAmount: null
             };
 
-            const billData = {
-                ...commonData,
-                payAmount: null, // User requested not to clone amount
-            };
-
-            console.log('Created Bill Data:', billData);
             billsToCreate.push(billData);
         }
 

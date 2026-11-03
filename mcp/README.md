@@ -7,10 +7,12 @@ PayRecord 的 MCP (Model Context Protocol) 服务器，stdio 传输，零依赖�
 
 | 工具 | 说明 | 需要的 scope |
 |------|------|--------------|
-| `list_due_bills` | 逾期 + N 天内到期的未付账单（daysUntilDue/overdue/合计），每日提醒用 | read |
+| `list_due_bills` | 逾期 + N 天内到期的未付与未收账单（分待付/待收，daysUntilDue/overdue/各自合计），每日提醒用 | read |
 | `list_bills` | 某年某月全部账单（默认当前月） | read |
 | `add_bill` | 新建账单；payee 对照商户列表校验；支持 dedupeKey 幂等 | write |
-| `mark_paid` | 标记已支付（paidDate 默认 now） | write |
+| `mark_paid` | 标记已支付（还款，paidDate 默认 now） | write |
+| `mark_received` | 标记已收款（房租/报销到账，回填 actualReceiveAmount） | write |
+| `clone_bills` | 周期账单滚存（包含常规月度与季度/多月周期的房租） | write |
 | `list_merchants` | 商户列表（add_bill 的 payee 白名单） | read |
 
 ## 环境变量

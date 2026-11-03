@@ -20,31 +20,48 @@ function formatAmount(n) {
     return (n ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }
 
-// One aggregated message per user: overdue group first, then due-soon group.
+// One aggregated message per user: pay bills and receive bills grouped clearly.
 function buildMessage(asOf, bills) {
-    const overdue = bills.filter(b => b.daysUntilDue < 0);
-    const dueSoon = bills.filter(b => b.daysUntilDue >= 0);
-    const payTotal = bills.reduce((s, b) => s + (b.payAmount ?? 0), 0);
-    const recvTotal = bills.reduce((s, b) => s + (b.receiveAmount ?? 0), 0);
+    const payBills = bills.filter(b => !b.payer);
+    const recvBills = bills.filter(b => Boolean(b.payer));
+
+    const payOverdue = payBills.filter(b => b.daysUntilDue < 0);
+    const payDueSoon = payBills.filter(b => b.daysUntilDue >= 0);
+
+    const recvOverdue = recvBills.filter(b => b.daysUntilDue < 0);
+    const recvDueSoon = recvBills.filter(b => b.daysUntilDue >= 0);
+
+    const payTotal = payBills.reduce((s, b) => s + (b.payAmount ?? 0), 0);
+    const recvTotal = recvBills.reduce((s, b) => s + (b.receiveAmount ?? 0), 0);
 
     const line = (b, i) => {
+        const isRecv = Boolean(b.payer);
         const when = b.overdue
             ? `逾期${-b.daysUntilDue}天`
             : b.daysUntilDue === 0 ? '今天到期' : `${b.daysUntilDue}天后到期`;
-        const name = b.payee || b.payer || '未知';
-        const amount = b.payAmount != null ? `¥${formatAmount(b.payAmount)}`
-            : b.receiveAmount != null ? `收¥${formatAmount(b.receiveAmount)}`
-                : '金额未填';
+        const name = (isRecv ? `[收] ${b.payer}` : (b.payee || '未知'));
+        const amount = isRecv
+            ? (b.receiveAmount != null ? `待收 ¥${formatAmount(b.receiveAmount)}` : '待收金额未填')
+            : (b.payAmount != null ? `¥${formatAmount(b.payAmount)}` : '金额未填');
         return `${i + 1}. ${b.date} ${name} ${amount}（${when}）${b.notes ? `\n   _${b.notes}_` : ''}`;
     };
 
     let m = `📅 **PayRecord 账单提醒**（${asOf}）\n\n`;
-    if (overdue.length) {
-        m += `🔴 **逾期 ${overdue.length} 笔**\n` + overdue.map(line).join('\n') + '\n\n';
+
+    if (payOverdue.length) {
+        m += `🔴 **还款逾期 ${payOverdue.length} 笔**\n` + payOverdue.map(line).join('\n') + '\n\n';
     }
-    if (dueSoon.length) {
-        m += `🟡 **${DUE_DAYS} 天内到期 ${dueSoon.length} 笔**\n` + dueSoon.map(line).join('\n') + '\n\n';
+    if (payDueSoon.length) {
+        m += `🟡 **${DUE_DAYS} 天内还款 ${payDueSoon.length} 笔**\n` + payDueSoon.map(line).join('\n') + '\n\n';
     }
+
+    if (recvOverdue.length) {
+        m += `🔴 **收款逾期 ${recvOverdue.length} 笔**\n` + recvOverdue.map(line).join('\n') + '\n\n';
+    }
+    if (recvDueSoon.length) {
+        m += `🟢 **${DUE_DAYS} 天内待收款 ${recvDueSoon.length} 笔**\n` + recvDueSoon.map(line).join('\n') + '\n\n';
+    }
+
     m += `合计：待付 ¥${formatAmount(payTotal)}` +
         (recvTotal > 0 ? ` / 待收 ¥${formatAmount(recvTotal)}` : '');
     return m;
@@ -74,9 +91,13 @@ async function main() {
             const bills = await prisma.bill.findMany({
                 where: {
                     userId: user.id,
-                    isPaid: false,
                     includeInStats: true,
-                    date: { lte: dueBefore }
+                    date: { lte: dueBefore },
+                    OR: [
+                        { payee: { not: null }, isPaid: false },
+                        { payer: { not: null }, actualReceiveAmount: null },
+                        { payee: null, payer: null, isPaid: false },
+                    ]
                 },
                 orderBy: { date: 'asc' }
             });
