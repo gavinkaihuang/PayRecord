@@ -73,11 +73,11 @@ export async function POST(request: Request) {
             data: {
                 userId: user!.userId as string,
                 date: new Date(body.date),
-                payee: body.payee,
+                payee: body.payee || null,
                 payAmount: parseAmount(body.payAmount),
                 isPaid: body.isPaid || false,
                 paidDate: body.paidDate ? new Date(body.paidDate) : null,
-                payer: body.payer,
+                payer: body.payer || null,
                 receiveAmount: parseAmount(body.receiveAmount),
                 actualReceiveAmount: parseAmount(body.actualReceiveAmount),
                 notes: body.notes,

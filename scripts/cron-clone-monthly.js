@@ -93,9 +93,9 @@ async function cloneForUser(user, targetYear, targetMonth) {
         billsToCreate.push({
             userId: user.id,
             date: targetDate,
-            payee: bill.payee,
+            payee: bill.payee || null,
             payAmount: null,
-            payer: bill.payer,
+            payer: bill.payer || null,
             receiveAmount: null,
             notes: bill.notes,
             isRecurring: bill.isRecurring,

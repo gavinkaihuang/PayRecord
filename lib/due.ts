@@ -53,7 +53,10 @@ export async function getDueBills(
             date: { lte: new Date(endOfShDayOffset(days, now)) },
             OR: [
                 { payee: { not: null }, isPaid: false },
-                { payer: { not: null }, actualReceiveAmount: null },
+                // payer must be a REAL payer: legacy rows stored '' for "no payer",
+                // and '' is not NULL in SQL — without the extra guard, paid bills
+                // with payer='' leak into the overdue list as fake receivables.
+                { AND: [{ payer: { not: null } }, { payer: { not: '' } }, { actualReceiveAmount: null }] },
                 { payee: null, payer: null, isPaid: false },
             ],
             ...(includeInStats === undefined ? {} : { includeInStats }),

@@ -106,9 +106,9 @@ export async function POST(request: Request) {
             const billData = {
                 userId,
                 date: targetDate,
-                payee: bill.payee,
+                payee: bill.payee || null,
                 payAmount: null,
-                payer: bill.payer,
+                payer: bill.payer || null,
                 receiveAmount: null,
                 notes: bill.notes,
                 isRecurring: bill.isRecurring,

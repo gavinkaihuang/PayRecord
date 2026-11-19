@@ -21,11 +21,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
             },
             data: {
                 date: body.date ? new Date(body.date) : undefined,
-                payee: body.payee,
+                payee: body.payee === undefined ? undefined : (body.payee || null),
                 payAmount: body.payAmount !== undefined ? parseAmount(body.payAmount) : undefined,
                 isPaid: body.isPaid,
                 paidDate: body.paidDate ? new Date(body.paidDate) : (body.paidDate === null ? null : undefined),
-                payer: body.payer,
+                payer: body.payer === undefined ? undefined : (body.payer || null),
                 receiveAmount: body.receiveAmount !== undefined ? parseAmount(body.receiveAmount) : undefined,
                 actualReceiveAmount: body.actualReceiveAmount !== undefined ? parseAmount(body.actualReceiveAmount) : undefined,
                 notes: body.notes,
